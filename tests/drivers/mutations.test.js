@@ -116,6 +116,34 @@ describe("registerDriver", () => {
     expect(api.update).not.toHaveBeenCalled();
   });
 
+  it("removes every uploaded document and the inserted row when saving document paths fails", async () => {
+    const updateError = new Error("Path update failed");
+    const { api } = createApi();
+    api.update.mockRejectedValue(updateError);
+
+    await expect(registerDriver(registrationInput(), api)).rejects.toThrow("Path update failed");
+
+    const uploadedPaths = api.upload.mock.calls.map(([path]) => path);
+    expect(uploadedPaths).toHaveLength(3);
+    expect(api.removeFiles).toHaveBeenCalledWith(uploadedPaths);
+    expect(api.remove).toHaveBeenCalledWith("driver-1");
+    expect(api.upsertAuto).not.toHaveBeenCalled();
+  });
+
+  it("removes every uploaded document and the inserted row when auto creation fails", async () => {
+    const autoError = new Error("Vehicle link failed");
+    const { api } = createApi();
+    api.upsertAuto.mockRejectedValue(autoError);
+
+    await expect(registerDriver(registrationInput(), api)).rejects.toThrow("Vehicle link failed");
+
+    const uploadedPaths = api.upload.mock.calls.map(([path]) => path);
+    expect(uploadedPaths).toHaveLength(3);
+    expect(api.removeFiles).toHaveBeenCalledWith(uploadedPaths);
+    expect(api.remove).toHaveBeenCalledWith("driver-1");
+    expect(api.update).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects a missing required document before inserting a row", async () => {
     const { api } = createApi();
     const input = registrationInput({ files: { photo: file("photo.png"), drivingLicence: file("licence.png") } });
@@ -181,5 +209,39 @@ describe("saveDriver", () => {
     expect(api.removeFiles).toHaveBeenCalledWith([newPath]);
     expect(api.removeFiles).not.toHaveBeenCalledWith(["driver-1/aadhaar-old.png"]);
     expect(events.map(([operation]) => operation)).toEqual(["upload", "update", "removeFiles"]);
+  });
+
+  it("restores the original row and removes new replacements when auto creation fails after an edit update", async () => {
+    const current = currentDriver({
+      name: "Original Ravi",
+      mobile: "9988776655",
+      auto_number_plate: "TS10ZZ0001",
+      driving_licence_number: "TS10202000001",
+      aadhaar_number: "111122223333",
+    });
+    const autoError = new Error("Vehicle link failed");
+    const { api } = createApi();
+    api.upsertAuto.mockRejectedValue(autoError);
+
+    await expect(saveDriver({ current, values, replacements: { aadhaar: file("new-aadhaar.png") } }, api))
+      .rejects.toThrow("Vehicle link failed");
+
+    const [[newPath]] = api.upload.mock.calls;
+    expect(api.update).toHaveBeenNthCalledWith(1, "driver-1", {
+      ...normalized,
+      aadhaar_image_path: newPath,
+    });
+    expect(api.update).toHaveBeenNthCalledWith(2, "driver-1", {
+      name: "Original Ravi",
+      mobile: "9988776655",
+      auto_number_plate: "TS10ZZ0001",
+      driving_licence_number: "TS10202000001",
+      aadhaar_number: "111122223333",
+      photo_path: "driver-1/photo-old.png",
+      driving_licence_image_path: "driver-1/licence-old.png",
+      aadhaar_image_path: "driver-1/aadhaar-old.png",
+    });
+    expect(api.removeFiles).toHaveBeenCalledWith([newPath]);
+    expect(api.removeFiles).not.toHaveBeenCalledWith(["driver-1/aadhaar-old.png"]);
   });
 });
