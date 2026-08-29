@@ -16,8 +16,11 @@ to download the built APK.
 
 1. Create a project at [supabase.com](https://supabase.com). Free tier is fine.
 2. **SQL Editor** → paste all of `setup.sql` → Run. Creates the `autos` and `ads` tables, the `ads` storage bucket, the security rules, and seeds one test auto (`AUTO-01`).
-3. **Authentication → Users → Add user.** Give yourself an email and password. That's your admin login.
-4. **Project Settings → API.** Copy the Project URL and the `anon public` key.
+3. **Authentication → Users → Add user.** The admin sign-in screen asks for a mobile number + PIN, not an email — but Supabase Auth only stores email + password, so create the user like this:
+   - **Email** → your mobile number followed by `@smato.local`, digits only. `9876543210` → `9876543210@smato.local`.
+   - **Password** → your PIN. Supabase requires at least 6 characters by default, so use a 6-digit PIN (or go to **Authentication → Providers → Email** and lower the minimum password length if you want a shorter one).
+   - Add one of these per person who needs admin access.
+4. **Project Settings → API.** Copy the Project URL and the `anon public` (sometimes labeled `publishable`) key.
 
 ## 2. Run it locally
 

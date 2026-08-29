@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase, adFileUrl, ADS_BUCKET } from "@/lib/supabase";
+import { supabase, adFileUrl, ADS_BUCKET, mobileToAuthEmail } from "@/lib/supabase";
 import { formatHour } from "@/lib/time";
 import SlotStrip from "@/components/SlotStrip";
 import FleetStrip from "@/components/FleetStrip";
@@ -25,8 +25,8 @@ export default function AdminPage() {
 }
 
 function SignIn() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -34,9 +34,18 @@ function SignIn() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: mobileToAuthEmail(mobile),
+      password: pin,
+    });
     setLoading(false);
-    if (error) setError(error.message);
+    if (error) {
+      setError(
+        error.message === "Invalid login credentials"
+          ? "Mobile number or PIN is wrong."
+          : error.message
+      );
+    }
   }
 
   return (
@@ -47,25 +56,29 @@ function SignIn() {
           <h1 className="signin__title">Sign in</h1>
         </div>
         <div className="field">
-          <label htmlFor="email">Email</label>
+          <label htmlFor="mobile">Mobile number</label>
           <input
-            id="email"
-            type="email"
+            id="mobile"
+            type="tel"
+            inputMode="numeric"
+            placeholder="98765 43210"
             required
-            autoComplete="username"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="tel"
+            value={mobile}
+            onChange={(e) => setMobile(e.target.value)}
           />
         </div>
         <div className="field">
-          <label htmlFor="password">Password</label>
+          <label htmlFor="pin">PIN</label>
           <input
-            id="password"
+            id="pin"
             type="password"
+            inputMode="numeric"
+            placeholder="6-digit PIN"
             required
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="off"
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
           />
         </div>
         {error && <div className="signin__error">{error}</div>}
