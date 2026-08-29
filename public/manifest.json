@@ -1,0 +1,9 @@
+{
+  "name": "smato ad screens",
+  "short_name": "smato",
+  "start_url": "/player",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0f0d",
+  "theme_color": "#0b0f0d"
+}
