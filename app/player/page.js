@@ -75,7 +75,7 @@ function SetupScreen({ onSaved }) {
         <button className="btn btn--primary" type="submit">
           Save & start playing
         </button>
-        <p className="upload-status">Saved permanently on this tablet. You won't see this screen again.</p>
+        <p className="upload-status">Saved permanently on this tablet. You won&apos;t see this screen again.</p>
       </form>
     </div>
   );
