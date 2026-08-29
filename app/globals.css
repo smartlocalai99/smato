@@ -355,6 +355,9 @@ h3 {
   border-radius: 8px;
   font-family: var(--font-body);
 }
+.fleet-map__marker {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+}
 .fleet-map__popup {
   font-size: 0.82rem;
   line-height: 1.5;

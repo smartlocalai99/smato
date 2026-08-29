@@ -4,18 +4,22 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// Leaflet's default marker icon references image files by a bundler-relative
-// path that breaks under webpack — point it at the CDN copies instead.
-const LEAFLET_CDN = "https://unpkg.com/leaflet@1.9.4/dist/images";
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: `${LEAFLET_CDN}/marker-icon-2x.png`,
-  iconUrl: `${LEAFLET_CDN}/marker-icon.png`,
-  shadowUrl: `${LEAFLET_CDN}/marker-shadow.png`,
-});
-
 const DEFAULT_CENTER = [20.5937, 78.9629]; // India, roughly — used until a real fix comes in
 const DEFAULT_ZOOM = 5;
+const GLIDE_MS = 1200;
+
+// The auto photo is a 3/4 angle shot, not a top-down silhouette, so it can't
+// be rotated to face direction of travel the way Uber/Ola spin their car
+// icons — it would just look broken side-on. What we can do, and what
+// actually reads as "live tracking," is glide the marker to its new spot
+// instead of snapping there.
+const autoIcon = L.icon({
+  iconUrl: "/auto-marker.png",
+  iconSize: [46, 40],
+  iconAnchor: [23, 20],
+  popupAnchor: [0, -18],
+  className: "fleet-map__marker",
+});
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (c) => ({
@@ -41,6 +45,26 @@ function popupHtml(auto) {
       <span>last seen ${escapeHtml(seen)}</span>
     </div>
   `;
+}
+
+// Eases a marker from wherever it currently is to `to`, instead of jumping —
+// the glide that makes a live map feel alive.
+function glideMarkerTo(marker, to) {
+  if (marker._glideFrame) cancelAnimationFrame(marker._glideFrame);
+
+  const from = marker.getLatLng();
+  const start = performance.now();
+
+  function step(now) {
+    const t = Math.min((now - start) / GLIDE_MS, 1);
+    const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    marker.setLatLng([
+      from.lat + (to[0] - from.lat) * eased,
+      from.lng + (to[1] - from.lng) * eased,
+    ]);
+    marker._glideFrame = t < 1 ? requestAnimationFrame(step) : null;
+  }
+  marker._glideFrame = requestAnimationFrame(step);
 }
 
 export default function FleetMap({ autos }) {
@@ -76,10 +100,10 @@ export default function FleetMap({ autos }) {
       const pos = [auto.last_lat, auto.last_lng];
       const existing = markersRef.current.get(auto.auto_number);
       if (existing) {
-        existing.setLatLng(pos);
+        glideMarkerTo(existing, pos);
         existing.setPopupContent(popupHtml(auto));
       } else {
-        const marker = L.marker(pos).addTo(map).bindPopup(popupHtml(auto));
+        const marker = L.marker(pos, { icon: autoIcon }).addTo(map).bindPopup(popupHtml(auto));
         markersRef.current.set(auto.auto_number, marker);
       }
     });
@@ -87,6 +111,7 @@ export default function FleetMap({ autos }) {
     // Drop markers for autos that no longer have a fix (or were removed).
     for (const [autoNumber, marker] of markersRef.current) {
       if (!seen.has(autoNumber)) {
+        if (marker._glideFrame) cancelAnimationFrame(marker._glideFrame);
         map.removeLayer(marker);
         markersRef.current.delete(autoNumber);
       }
