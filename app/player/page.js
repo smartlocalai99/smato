@@ -98,7 +98,9 @@ function Player({ autoNumber }) {
 
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef(null);
-  const objectUrlsRef = useRef([]);
+  // adId -> object URL. Kept stable across rebuilds so a video that's mid-
+  // playback never has its src revoked out from under it — see rebuildPlaylist.
+  const objectUrlsRef = useRef(new Map());
 
   // --- tap-5x-corner to toggle the debug HUD ---------------------------------
   const handleCornerTap = useCallback(() => {
@@ -282,13 +284,26 @@ function Player({ autoNumber }) {
         .filter((ad) => storedById.has(ad.id))
         .filter((ad) => isAdActiveNow(ad, autoNumber, now));
 
-      objectUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-      objectUrlsRef.current = [];
+      const activeIds = new Set(active.map((ad) => ad.id));
+
+      // Only revoke URLs for ads that have actually dropped out of rotation
+      // — reusing the rest means a playing video's src stays valid instead
+      // of silently going stale mid-playback (that "video icon, nothing
+      // plays" bug).
+      for (const [id, url] of objectUrlsRef.current) {
+        if (!activeIds.has(id)) {
+          URL.revokeObjectURL(url);
+          objectUrlsRef.current.delete(id);
+        }
+      }
 
       const next = active.map((ad) => {
         const rec = storedById.get(ad.id);
-        const url = URL.createObjectURL(rec.blob);
-        objectUrlsRef.current.push(url);
+        let url = objectUrlsRef.current.get(ad.id);
+        if (!url) {
+          url = URL.createObjectURL(rec.blob);
+          objectUrlsRef.current.set(ad.id, url);
+        }
         return {
           id: ad.id,
           title: ad.title,
