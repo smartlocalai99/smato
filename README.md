@@ -1,9 +1,15 @@
 # Ad screens — Next.js app
 
-Two pages:
+Core pages:
 
 - `/admin` — sign in, upload ad videos, assign each one to an auto, watch the fleet on a live map with each tablet's status, address, and what's currently playing
 - `/player` — what runs on each tablet. Registers itself with an auto number, downloads its ads once, and plays them fully offline from then on.
+
+The authenticated admin area also includes driver management:
+
+- `/admin/drivers` — search registered drivers and open a record for editing
+- `/admin/drivers/new` — register a driver with their required documents
+- `/admin/drivers/[id]/edit` — update a driver's details or replace individual documents
 
 Plus a small Android app in [`android/`](android/) — a kiosk wrapper around
 `/player` (no watermark, screen always on, auto-launches after reboot). See
@@ -15,7 +21,7 @@ to download the built APK.
 ## 1. Supabase
 
 1. Create a project at [supabase.com](https://supabase.com). Free tier is fine.
-2. **SQL Editor** → paste all of `setup.sql` → Run. Creates the `autos` and `ads` tables, the `ads` storage bucket, the security rules, and seeds one test auto (`AUTO-01`).
+2. **SQL Editor** → paste all of `setup.sql` → Run. Creates the `autos`, `ads`, and `drivers` tables, the `ads` and private `driver-documents` storage buckets, the security rules, and seeds one test auto (`AUTO-01`).
 3. **Authentication → Users → Add user.** The admin sign-in screen asks for a mobile number + PIN, not an email — but Supabase Auth only stores email + password, so create your first login like this:
    - **Email** → your mobile number followed by `@smato.local`, digits only. `9876543210` → `9876543210@smato.local`.
    - **Password** → your PIN. Supabase requires at least 6 characters by default, so use a 6-digit PIN.
@@ -65,7 +71,13 @@ Or push to GitHub and import the repo at vercel.com.
 You'll get a URL like `https://your-app.vercel.app`.
 
 - Admin: `https://your-app.vercel.app/admin`
+- Drivers: `https://your-app.vercel.app/admin/drivers`
+- Register a driver: `https://your-app.vercel.app/admin/drivers/new`
 - Player (put this in the tablet's browser): `https://your-app.vercel.app/player`
+
+### Supabase upgrades
+
+After deploying a version that adds or updates driver management, run the current `setup.sql` again in the connected project's SQL Editor. It is idempotent: it adds the driver table, private document bucket, and access policies without recreating existing fleet or advertisement data.
 
 ## 4. Set up a tablet
 
@@ -103,6 +115,14 @@ In `/admin`, under **Add an ad**:
 4. Choose a video **or image** file and upload — a photo plays for 8 seconds each time its turn comes up in the rotation, a video plays for its full length.
 
 The tablet picks it up within seconds if it's online — submitting, pausing, resuming, or deleting an ad broadcasts a message straight to every connected tablet, which triggers an immediate sync. No polling delay, and no Supabase dashboard setting to configure — it uses Realtime Broadcast, which works out of the box with the anon key (unlike the "Replication" toggle used for database change tracking, which this app doesn't rely on).
+
+## Managing drivers
+
+Open `/admin/drivers` after signing in to search the driver directory, or use `/admin/drivers/new` to register a record. Registration requires a name, mobile number, auto number plate, Driving Licence number, Aadhaar number, and three images: a driver photo, Driving Licence image, and Aadhaar image. Images must be JPEG, PNG, or WebP and under 5 MB.
+
+Each auto can have **one registered driver only**. Mobile numbers, Driving Licence numbers, and Aadhaar numbers are also unique, so the directory cannot accidentally create a duplicate identity or auto assignment.
+
+Driver documents are private. The app stores only private storage paths and creates short-lived signed URLs for authenticated admins when an image must be shown. The directory masks Aadhaar and Driving Licence values; full values and images appear only in the authenticated edit view. Keep real identifiers and signed storage URLs out of documentation, issue reports, and screenshots.
 
 ## How the offline part works
 
