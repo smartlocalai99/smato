@@ -5,6 +5,11 @@ Two pages:
 - `/admin` — sign in, upload ad videos, assign each one to an auto and a time window, watch the fleet (online status + last GPS fix)
 - `/player` — what runs on each tablet. Registers itself with an auto number, downloads its ads once, and plays them fully offline from then on.
 
+Plus a small Android app in [`android/`](android/) — a kiosk wrapper around
+`/player` (no watermark, screen always on, auto-launches after reboot). See
+[`android/README.md`](android/README.md) for install instructions and where
+to download the built APK.
+
 ---
 
 ## 1. Supabase

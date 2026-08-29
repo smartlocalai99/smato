@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/ink">
+
+    <WebView
+        android:id="@+id/webview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Tap this corner 5x to open setup / change the player URL later,
+         same gesture the web player's own debug HUD uses. -->
+    <View
+        android:id="@+id/corner_tap"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_gravity="top|start" />
+
+    <LinearLayout
+        android:id="@+id/setup_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#DD0B0F0D"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+
+        <LinearLayout
+            android:layout_width="360dp"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@color/panel"
+            android:padding="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SMATO · PLAYER SETUP"
+                android:textColor="@color/amber"
+                android:textSize="11sp"
+                android:letterSpacing="0.15"
+                android:layout_marginBottom="10dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Player URL"
+                android:textColor="@color/text"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Enter it once — saved on this tablet."
+                android:textColor="@color/text_dim"
+                android:textSize="13sp"
+                android:layout_marginBottom="18dp" />
+
+            <EditText
+                android:id="@+id/url_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="https://your-app.vercel.app/player"
+                android:inputType="textUri"
+                android:maxLines="1"
+                android:textColor="@color/text"
+                android:textColorHint="@color/text_dim"
+                android:backgroundTint="@color/line"
+                android:padding="12dp"
+                android:layout_marginBottom="18dp" />
+
+            <Button
+                android:id="@+id/save_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Save &amp; play"
+                android:textAllCaps="false"
+                android:backgroundTint="@color/amber"
+                android:textColor="@color/ink"
+                android:layout_marginBottom="8dp" />
+
+            <Button
+                android:id="@+id/cancel_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Cancel"
+                android:textAllCaps="false"
+                android:background="@android:color/transparent"
+                android:textColor="@color/text_dim"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
