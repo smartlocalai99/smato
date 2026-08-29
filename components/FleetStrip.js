@@ -1,7 +1,11 @@
 "use client";
 
-// Live status card per auto: online/idle/offline from the heartbeat, plus
-// the last GPS fix linked out to a map. Status is derived, never stored.
+import { useEffect, useState } from "react";
+import { reverseGeocode } from "@/lib/geocode";
+
+// Live status card per auto: online/idle/offline from the heartbeat, what
+// it's currently playing, and its last GPS fix as a readable address.
+// Status is derived, never stored.
 export default function FleetStrip({ autos }) {
   if (!autos.length) {
     return (
@@ -39,12 +43,32 @@ function timeAgo(iso) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+// Rounds to ~11m so GPS jitter between pings doesn't keep re-fetching.
+function useAddress(rawLat, rawLng) {
+  const lat = rawLat != null ? Number(rawLat.toFixed(4)) : null;
+  const lng = rawLng != null ? Number(rawLng.toFixed(4)) : null;
+  const [address, setAddress] = useState(null);
+
+  useEffect(() => {
+    if (lat == null || lng == null) return;
+    let cancelled = false;
+    reverseGeocode(lat, lng).then((addr) => {
+      if (!cancelled) setAddress(addr);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [lat, lng]);
+
+  return address;
+}
+
 function FleetCard({ auto }) {
   const s = status(auto);
   const hasGps = auto.last_lat != null && auto.last_lng != null;
-  const mapUrl = hasGps
-    ? `https://www.google.com/maps?q=${auto.last_lat},${auto.last_lng}`
-    : null;
+  const address = useAddress(auto.last_lat, auto.last_lng);
+  const mapUrl = hasGps ? `https://www.google.com/maps?q=${auto.last_lat},${auto.last_lng}` : null;
+  const coords = hasGps ? `${auto.last_lat.toFixed(4)}, ${auto.last_lng.toFixed(4)}` : null;
 
   return (
     <div className={`fleet-card fleet-card--${s}`}>
@@ -56,15 +80,19 @@ function FleetCard({ auto }) {
       {auto.label && <div className="fleet-card__label">{auto.label}</div>}
       <dl className="fleet-card__meta">
         <div>
+          <dt>Now playing</dt>
+          <dd>{auto.now_playing_title || "idle"}</dd>
+        </div>
+        <div>
           <dt>Last seen</dt>
           <dd>{timeAgo(auto.last_seen_at)}</dd>
         </div>
-        <div>
-          <dt>GPS fix</dt>
+        <div className="fleet-card__meta-wide">
+          <dt>Location</dt>
           <dd>
             {hasGps ? (
-              <a href={mapUrl} target="_blank" rel="noreferrer">
-                {auto.last_lat.toFixed(4)}, {auto.last_lng.toFixed(4)}
+              <a href={mapUrl} target="_blank" rel="noreferrer" title={address ? `${address} (${coords})` : coords}>
+                {address || coords}
               </a>
             ) : (
               "no fix yet"

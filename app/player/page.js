@@ -345,6 +345,19 @@ function Player({ autoNumber }) {
   // --- playback ---------------------------------------------------------------
   const current = playlist.length ? playlist[playIndex % playlist.length] : null;
 
+  // Lets the admin Fleet view show what's actually on screen right now.
+  useEffect(() => {
+    if (!navigator.onLine) return;
+    supabase
+      .from("autos")
+      .upsert(
+        { auto_number: autoNumber, now_playing_title: current ? current.title : null },
+        { onConflict: "auto_number" }
+      )
+      .then(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoNumber, current?.id]);
+
   function handleEnded() {
     setPlayIndex((i) => (playlist.length ? (i + 1) % playlist.length : 0));
   }

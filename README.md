@@ -2,7 +2,7 @@
 
 Two pages:
 
-- `/admin` — sign in, upload ad videos, assign each one to an auto and a time window, watch the fleet (online status + last GPS fix)
+- `/admin` — sign in, upload ad videos, assign each one to an auto, watch the fleet on a live map with each tablet's status, address, and what's currently playing
 - `/player` — what runs on each tablet. Registers itself with an auto number, downloads its ads once, and plays them fully offline from then on.
 
 Plus a small Android app in [`android/`](android/) — a kiosk wrapper around
@@ -98,10 +98,9 @@ You'll get a URL like `https://your-app.vercel.app`.
 In `/admin`, under **Add an ad**:
 
 1. **Plays on** — pick a specific auto (e.g. `AUTO-01`), or **All autos**. Pick **+ New auto…** to type a number that hasn't checked in yet — it'll be assigned to that video and appear in the Fleet list right away.
-2. **From / Until** — the hours of the day it should play (24h window, wraps past midnight if `From` is later than `Until`).
+2. **Play order** — ads loop all day, back to back, in this order (lowest first). There's no time-of-day scheduling — if it's active, it's in the rotation.
 3. Optional start/end date to run it only for a campaign window.
-4. **Play order** — when more than one ad is active at once on an auto, they rotate in this order.
-5. Choose a video **or image** file and upload — a photo plays for 8 seconds each time its turn comes up in the rotation, a video plays for its full length.
+4. Choose a video **or image** file and upload — a photo plays for 8 seconds each time its turn comes up in the rotation, a video plays for its full length.
 
 The tablet picks it up within seconds if it's online — submitting, pausing, resuming, or deleting an ad broadcasts a message straight to every connected tablet, which triggers an immediate sync. No polling delay, and no Supabase dashboard setting to configure — it uses Realtime Broadcast, which works out of the box with the anon key (unlike the "Replication" toggle used for database change tracking, which this app doesn't rely on).
 
@@ -111,9 +110,11 @@ The tablet picks it up within seconds if it's online — submitting, pausing, re
 - On boot the player plays what it already has, instantly, with no internet.
 - It syncs the moment an ad changes (broadcast from `/admin`), plus a once-an-hour safety-net check in case that connection ever silently drops.
 - **Old ads are deleted only after the new ones have fully downloaded.** A dropped connection can never leave you with a blank screen.
-- Time slots are checked against the tablet's clock every minute, so schedules start and stop on their own offline.
+- Ads loop by play order continuously — pausing or deleting one (or its campaign dates ending) is what takes it out of rotation, checked every minute so it happens on its own even offline.
 - The service worker caches the app itself, so the page loads even with no network.
-- GPS keeps updating in the background whenever there's a connection; the last fix is shown on the tablet (HUD) and in the admin Fleet view even if the tablet later goes offline.
+- GPS keeps updating in the background whenever there's a connection; the last fix — and what the tablet is currently playing — show up in the admin Fleet view (as a real address, and on a map) even if the tablet later goes offline.
+
+The Fleet map and addresses use OpenStreetMap (via Leaflet) and Nominatim — both free, no API key. That's fine at the scale of ~20 autos; if you ever outgrow it, that's the piece to swap for Google Maps.
 
 Data used is roughly the size of the videos, once. A 30-second 1080p ad is about 30 MB, so ten ads a month is around 300 MB per tablet.
 
@@ -129,17 +130,19 @@ Data used is roughly the size of the videos, once. A 30-second 1080p ad is about
 ```
 app/
   page.js            landing page with both links
-  admin/page.js      control panel: sign in, fleet + GPS view, upload form, ads list
-  player/page.js      tablet player: setup screen, offline sync, GPS, playback, debug HUD
-  layout.js           fonts and shell
-  globals.css         all styling
+  admin/page.js      control panel: sign in, fleet + map, upload form, ads list, team access
+  api/admin/create-admin/route.js   server-side (service role) admin creation
+  player/page.js     tablet player: setup screen, offline sync, GPS, playback, debug HUD
+  layout.js          fonts and shell
+  globals.css        all styling
 lib/
-  supabase.js         client + storage URL helper
-  idb.js              IndexedDB wrapper
-  time.js             date and time-slot logic
+  supabase.js        client + storage URL helper + realtime broadcast
+  idb.js             IndexedDB wrapper
+  time.js            date/campaign logic
+  geocode.js          lat/lng → address (OpenStreetMap Nominatim)
 components/
-  SlotStrip.js         24-hour schedule dial
-  FleetStrip.js         per-auto online/GPS status cards
+  FleetStrip.js       per-auto status cards (online, now playing, address)
+  FleetMap.js         live map of every auto's last GPS fix (Leaflet)
 public/
   sw.js               service worker
   manifest.json

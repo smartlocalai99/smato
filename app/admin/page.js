@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import nextDynamic from "next/dynamic";
 import {
   supabase,
   adFileUrl,
@@ -9,9 +10,11 @@ import {
   notifyAdsChanged,
   warmAdsChannel,
 } from "@/lib/supabase";
-import { formatHour } from "@/lib/time";
-import SlotStrip from "@/components/SlotStrip";
 import FleetStrip from "@/components/FleetStrip";
+
+// Leaflet touches window/document at load time, so it can only ever run in
+// the browser — never during Next's server render.
+const FleetMap = nextDynamic(() => import("@/components/FleetMap"), { ssr: false });
 
 export const dynamic = "force-dynamic";
 
@@ -162,6 +165,7 @@ function Console({ session }) {
             <span className="section-head__hint">{autos.length} auto(s) checked in</span>
           </div>
           <FleetStrip autos={autos} />
+          <FleetMap autos={autos} />
         </section>
 
         <section>
@@ -271,13 +275,9 @@ function UploadForm({ autos, onUploaded }) {
   const [newAutoNumber, setNewAutoNumber] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [startHour, setStartHour] = useState(0);
-  const [endHour, setEndHour] = useState(23);
   const [sortOrder, setSortOrder] = useState(0);
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState(null); // { type: 'error'|'ok'|'busy', text }
-
-  const hourOptions = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
 
   function resetForm() {
     setTitle("");
@@ -285,8 +285,6 @@ function UploadForm({ autos, onUploaded }) {
     setNewAutoNumber("");
     setStartDate("");
     setEndDate("");
-    setStartHour(0);
-    setEndHour(23);
     setSortOrder(0);
     setFile(null);
   }
@@ -337,8 +335,6 @@ function UploadForm({ autos, onUploaded }) {
         auto_number: autoNumber,
         start_date: startDate || null,
         end_date: endDate || null,
-        start_hour: Number(startHour),
-        end_hour: Number(endHour),
         sort_order: Number(sortOrder) || 0,
       });
       if (insertError) throw insertError;
@@ -393,6 +389,7 @@ function UploadForm({ autos, onUploaded }) {
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
           />
+          <span className="field__hint">Ads loop all day in this order — lowest plays first.</span>
         </div>
 
         <div className="field">
@@ -403,31 +400,6 @@ function UploadForm({ autos, onUploaded }) {
           <label htmlFor="endDate">End date (optional)</label>
           <input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </div>
-
-        <div className="field">
-          <label htmlFor="startHour">From</label>
-          <select id="startHour" value={startHour} onChange={(e) => setStartHour(e.target.value)}>
-            {hourOptions.map((h) => (
-              <option key={h} value={h}>
-                {formatHour(h)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="endHour">Until</label>
-          <select id="endHour" value={endHour} onChange={(e) => setEndHour(e.target.value)}>
-            {hourOptions.map((h) => (
-              <option key={h} value={h}>
-                {formatHour(h)}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="upload-preview">
-        <SlotStrip startHour={Number(startHour)} endHour={Number(endHour)} />
       </div>
 
       <div className="upload-grid upload-grid--wide">
@@ -505,9 +477,6 @@ function AdsList({ ads, onChange }) {
               <span className="tag">{ad.auto_number || "all autos"}</span>
               <span className="tag">{ad.media_type === "image" ? "image" : "video"}</span>
               <span>
-                {formatHour(ad.start_hour)}–{formatHour(ad.end_hour)}
-              </span>
-              <span>
                 {ad.start_date || "no start"} → {ad.end_date || "no end"}
               </span>
               <span>order {ad.sort_order}</span>
@@ -521,9 +490,6 @@ function AdsList({ ads, onChange }) {
             <button className="btn btn--danger" disabled={busyId === ad.id} onClick={() => removeAd(ad)}>
               Delete
             </button>
-          </div>
-          <div className="ad-row__strip">
-            <SlotStrip startHour={ad.start_hour} endHour={ad.end_hour} compact />
           </div>
         </div>
       ))}

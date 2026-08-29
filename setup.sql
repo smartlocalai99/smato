@@ -18,14 +18,20 @@ create table if not exists autos (
   last_lng double precision,
   last_gps_at timestamptz,
   last_gps_accuracy double precision,
+  now_playing_title text,
   app_version text,
   created_at timestamptz not null default now()
 );
 
+-- Safe to re-run on a project that already has `autos` from before this
+-- column existed.
+alter table autos add column if not exists now_playing_title text;
+
 -- ---------------------------------------------------------------------------
--- ads: one row per uploaded video. auto_number = null means "play on every
--- auto". start_date/end_date = null means "no date limit". start_hour/
--- end_hour are 0-23 and inclusive of the whole end hour.
+-- ads: one row per uploaded video/image. auto_number = null means "play on
+-- every auto". start_date/end_date = null means "no date limit". Ads loop
+-- by sort_order all day — start_hour/end_hour are kept in the schema for
+-- backward compatibility but the app no longer reads or writes them.
 -- ---------------------------------------------------------------------------
 create table if not exists ads (
   id uuid primary key default gen_random_uuid(),
