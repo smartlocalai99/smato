@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase, adFileUrl } from "@/lib/supabase";
+import { supabase, adFileUrl, ADS_CHANNEL_NAME } from "@/lib/supabase";
 import { getAllVideos, putVideo, deleteVideos } from "@/lib/idb";
 import { adsForAuto, isAdActiveNow } from "@/lib/time";
 
@@ -320,16 +320,17 @@ function Player({ autoNumber }) {
     return () => window.removeEventListener("online", onOnline);
   }, [sync]);
 
-  // The real trigger: sync the moment an ad is added, edited, or deleted,
-  // instead of waiting on a timer. Requires Realtime turned on for the
-  // `ads` table (Supabase → Database → Replication).
+  // The real trigger: sync the moment admin submits an ad (add/edit/pause/
+  // delete), instead of waiting on a timer. Plain Realtime Broadcast, not
+  // postgres_changes — works with the anon key out of the box, no Supabase
+  // dashboard setting to remember to flip.
   useEffect(() => {
     const channel = supabase
-      .channel(`player-ads-${autoNumber}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "ads" }, () => sync())
+      .channel(ADS_CHANNEL_NAME)
+      .on("broadcast", { event: "changed" }, () => sync())
       .subscribe();
     return () => supabase.removeChannel(channel);
-  }, [autoNumber, sync]);
+  }, [sync]);
 
   // Re-check which ads are time-active once a minute, offline-safe.
   useEffect(() => {

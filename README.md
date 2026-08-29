@@ -103,15 +103,13 @@ In `/admin`, under **Add an ad**:
 4. **Play order** — when more than one ad is active at once on an auto, they rotate in this order.
 5. Choose a video **or image** file and upload — a photo plays for 8 seconds each time its turn comes up in the rotation, a video plays for its full length.
 
-The tablet picks it up within seconds if it's online — uploading, editing, pausing, or deleting an ad pushes a Realtime event straight to every connected tablet, which triggers an immediate sync. No polling delay. Old videos for that auto are only deleted from the tablet after the new ones have fully downloaded, so a dropped connection can never leave the screen blank.
-
-This needs **Realtime turned on for the `ads` table**: Supabase → **Database → Replication** → find the `ads` table → toggle it on. `setup.sql` can't do this part for you — it's a project-level switch, not SQL.
+The tablet picks it up within seconds if it's online — submitting, pausing, resuming, or deleting an ad broadcasts a message straight to every connected tablet, which triggers an immediate sync. No polling delay, and no Supabase dashboard setting to configure — it uses Realtime Broadcast, which works out of the box with the anon key (unlike the "Replication" toggle used for database change tracking, which this app doesn't rely on).
 
 ## How the offline part works
 
 - Videos are downloaded into the tablet's own storage (IndexedDB), never streamed.
 - On boot the player plays what it already has, instantly, with no internet.
-- It syncs the moment an ad changes (via Supabase Realtime), plus a once-an-hour safety-net check in case that connection ever silently drops.
+- It syncs the moment an ad changes (broadcast from `/admin`), plus a once-an-hour safety-net check in case that connection ever silently drops.
 - **Old ads are deleted only after the new ones have fully downloaded.** A dropped connection can never leave you with a blank screen.
 - Time slots are checked against the tablet's clock every minute, so schedules start and stop on their own offline.
 - The service worker caches the app itself, so the page loads even with no network.

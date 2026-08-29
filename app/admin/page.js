@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase, adFileUrl, ADS_BUCKET, mobileToAuthEmail } from "@/lib/supabase";
+import {
+  supabase,
+  adFileUrl,
+  ADS_BUCKET,
+  mobileToAuthEmail,
+  notifyAdsChanged,
+  warmAdsChannel,
+} from "@/lib/supabase";
 import { formatHour } from "@/lib/time";
 import SlotStrip from "@/components/SlotStrip";
 import FleetStrip from "@/components/FleetStrip";
@@ -115,6 +122,7 @@ function Console({ session }) {
   useEffect(() => {
     loadAutos();
     loadAds();
+    warmAdsChannel();
 
     const channel = supabase
       .channel("admin-autos")
@@ -334,8 +342,9 @@ function UploadForm({ autos, onUploaded }) {
         sort_order: Number(sortOrder) || 0,
       });
       if (insertError) throw insertError;
+      notifyAdsChanged();
 
-      setStatus({ type: "ok", text: "Uploaded. It'll reach the tablet on its next sync." });
+      setStatus({ type: "ok", text: "Uploaded — playing on the tablet within a few seconds." });
       resetForm();
       onUploaded();
     } catch (err) {
@@ -464,6 +473,7 @@ function AdsList({ ads, onChange }) {
     setBusyId(ad.id);
     await supabase.from("ads").update({ active: !ad.active }).eq("id", ad.id);
     setBusyId(null);
+    notifyAdsChanged();
     onChange();
   }
 
@@ -473,6 +483,7 @@ function AdsList({ ads, onChange }) {
     await supabase.storage.from(ADS_BUCKET).remove([ad.file_path]);
     await supabase.from("ads").delete().eq("id", ad.id);
     setBusyId(null);
+    notifyAdsChanged();
     onChange();
   }
 
