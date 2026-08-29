@@ -114,6 +114,96 @@ drop policy if exists "ads_bucket_delete_admin" on storage.objects;
 create policy "ads_bucket_delete_admin" on storage.objects for delete
   using (bucket_id = 'ads' and auth.role() = 'authenticated');
 
+-- ---------------------------------------------------------------------------
+-- drivers: private driver records and identity documents. File paths are
+-- nullable only while a failed registration is rolled back; a record may not
+-- retain a partial document set.
+-- ---------------------------------------------------------------------------
+create table if not exists drivers (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (length(btrim(name)) > 0),
+  mobile text not null constraint drivers_mobile_key unique,
+  auto_number_plate text not null constraint drivers_auto_number_plate_key unique,
+  driving_licence_number text not null constraint drivers_driving_licence_number_key unique,
+  aadhaar_number text not null constraint drivers_aadhaar_number_key unique,
+  photo_path text,
+  driving_licence_image_path text,
+  aadhaar_image_path text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint drivers_documents_complete check (
+    (photo_path is null and driving_licence_image_path is null and aadhaar_image_path is null)
+    or
+    (photo_path is not null and driving_licence_image_path is not null and aadhaar_image_path is not null)
+  )
+);
+
+create or replace function set_updated_at() returns trigger language plpgsql as $$
+begin new.updated_at = now(); return new; end;
+$$;
+
+drop trigger if exists drivers_set_updated_at on drivers;
+create trigger drivers_set_updated_at before update on drivers
+for each row execute function set_updated_at();
+
+alter table drivers enable row level security;
+revoke all on table drivers from anon;
+revoke all on table drivers from authenticated;
+grant select, insert, update, delete on table drivers to authenticated;
+
+drop policy if exists "drivers_select_admin" on drivers;
+create policy "drivers_select_admin" on drivers for select
+  to authenticated
+  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+
+drop policy if exists "drivers_insert_admin" on drivers;
+create policy "drivers_insert_admin" on drivers for insert
+  to authenticated
+  with check ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+
+drop policy if exists "drivers_update_admin" on drivers for update;
+create policy "drivers_update_admin" on drivers for update
+  to authenticated
+  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true')
+  with check ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+
+drop policy if exists "drivers_delete_admin" on drivers;
+create policy "drivers_delete_admin" on drivers for delete
+  to authenticated
+  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('driver-documents', 'driver-documents', false, 5242880,
+  array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "driver_documents_select_admin" on storage.objects;
+create policy "driver_documents_select_admin" on storage.objects for select
+  to authenticated
+  using (bucket_id = 'driver-documents'
+    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+
+drop policy if exists "driver_documents_insert_admin" on storage.objects;
+create policy "driver_documents_insert_admin" on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'driver-documents'
+    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+
+drop policy if exists "driver_documents_update_admin" on storage.objects;
+create policy "driver_documents_update_admin" on storage.objects for update
+  to authenticated
+  using (bucket_id = 'driver-documents'
+    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true')
+  with check (bucket_id = 'driver-documents'
+    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+
+drop policy if exists "driver_documents_delete_admin" on storage.objects;
+create policy "driver_documents_delete_admin" on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'driver-documents'
+    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+
 -- Seed the one test auto so it shows up in the admin dropdown immediately.
 insert into autos (auto_number, label)
 values ('AUTO-01', 'Test auto')
