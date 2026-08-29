@@ -103,13 +103,13 @@ In `/admin`, under **Add an ad**:
 4. **Play order** — when more than one ad is active at once on an auto, they rotate in this order.
 5. Choose a video **or image** file and upload — a photo plays for 8 seconds each time its turn comes up in the rotation, a video plays for its full length.
 
-The tablet picks it up on its next sync (every 30 minutes, or immediately if you reload `/player` while online). Old videos for that auto are only deleted from the tablet after the new ones have fully downloaded, so a dropped connection can never leave the screen blank.
+The tablet picks it up on its next sync (every 2 minutes, or immediately if you reload `/player` while online). Old videos for that auto are only deleted from the tablet after the new ones have fully downloaded, so a dropped connection can never leave the screen blank.
 
 ## How the offline part works
 
 - Videos are downloaded into the tablet's own storage (IndexedDB), never streamed.
 - On boot the player plays what it already has, instantly, with no internet.
-- Every 30 minutes, if there's a connection, it checks for new ads and downloads them in the background.
+- Every 2 minutes, if there's a connection, it checks for new ads and downloads them in the background.
 - **Old ads are deleted only after the new ones have fully downloaded.** A dropped connection can never leave you with a blank screen.
 - Time slots are checked against the tablet's clock every minute, so schedules start and stop on their own offline.
 - The service worker caches the app itself, so the page loads even with no network.

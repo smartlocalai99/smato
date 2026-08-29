@@ -7,7 +7,7 @@ import { adsForAuto, isAdActiveNow } from "@/lib/time";
 
 const AUTO_KEY = "smato.autoNumber";
 const LABEL_KEY = "smato.autoLabel";
-const SYNC_INTERVAL_MS = 30 * 60 * 1000;
+const SYNC_INTERVAL_MS = 2 * 60 * 1000;
 const TICK_INTERVAL_MS = 60 * 1000;
 const GPS_MIN_INTERVAL_MS = 30 * 1000;
 const HEARTBEAT_INTERVAL_MS = 60 * 1000;
