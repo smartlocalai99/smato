@@ -93,6 +93,7 @@ function Player({ autoNumber }) {
     downloadedCount: 0,
     gps: null,
     gpsError: null,
+    playError: null,
     now: new Date(),
   });
 
@@ -382,8 +383,38 @@ function Player({ autoNumber }) {
     if (!video || !current || current.mediaType === "image") return;
     if (video.dataset.playingId === current.id) return;
     video.dataset.playingId = current.id;
+
+    // React's `muted` prop doesn't always reach the element before autoplay
+    // is attempted, and unmuted autoplay is silently blocked by the browser
+    // — which used to fail here with no visible error, leaving the video
+    // paused on its native play button forever. Set it directly, and keep
+    // retrying: a kiosk tablet has nobody there to tap play.
+    video.muted = true;
+    video.defaultMuted = true;
     video.src = current.url;
-    video.play().catch(() => {});
+
+    const tryPlay = () => {
+      video.play().catch((err) => {
+        setHud((h) => ({ ...h, playError: err?.message || "play() blocked" }));
+      });
+    };
+    tryPlay();
+
+    const onPlaying = () => setHud((h) => ({ ...h, playError: null }));
+    const onCanPlay = () => {
+      if (video.paused) tryPlay();
+    };
+    video.addEventListener("playing", onPlaying);
+    video.addEventListener("canplay", onCanPlay);
+    const retryTimer = setInterval(() => {
+      if (video.paused && video.dataset.playingId === current.id) tryPlay();
+    }, 3000);
+
+    return () => {
+      video.removeEventListener("playing", onPlaying);
+      video.removeEventListener("canplay", onCanPlay);
+      clearInterval(retryTimer);
+    };
   }, [current]);
 
   // Images don't fire an "ended" event, so give each one a fixed slot.
@@ -468,6 +499,12 @@ function Hud({ autoNumber, hud, current, playlistLength, onClose }) {
           {current ? current.title : "idle"} ({playlistLength} in rotation)
         </span>
       </div>
+      {hud.playError && (
+        <div className="hud__row">
+          <span>play error</span>
+          <span>{hud.playError}</span>
+        </div>
+      )}
       <div className="hud__row">
         <span>gps fix</span>
         <span>
