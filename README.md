@@ -16,11 +16,15 @@ to download the built APK.
 
 1. Create a project at [supabase.com](https://supabase.com). Free tier is fine.
 2. **SQL Editor** → paste all of `setup.sql` → Run. Creates the `autos` and `ads` tables, the `ads` storage bucket, the security rules, and seeds one test auto (`AUTO-01`).
-3. **Authentication → Users → Add user.** The admin sign-in screen asks for a mobile number + PIN, not an email — but Supabase Auth only stores email + password, so create the user like this:
+3. **Authentication → Users → Add user.** The admin sign-in screen asks for a mobile number + PIN, not an email — but Supabase Auth only stores email + password, so create your first login like this:
    - **Email** → your mobile number followed by `@smato.local`, digits only. `9876543210` → `9876543210@smato.local`.
-   - **Password** → your PIN. Supabase requires at least 6 characters by default, so use a 6-digit PIN (or go to **Authentication → Providers → Email** and lower the minimum password length if you want a shorter one).
-   - Add one of these per person who needs admin access.
-4. **Project Settings → API.** Copy the Project URL and the `anon public` (sometimes labeled `publishable`) key.
+   - **Password** → your PIN. Supabase requires at least 6 characters by default, so use a 6-digit PIN.
+   - **Tick "Auto Confirm User".** This is the step people miss — without it Supabase waits for a confirmation email, which a fake `@smato.local` address can never receive, so sign-in fails forever with "Invalid login credentials". If you already created a user without ticking it, fix it by running this once in the SQL Editor (swap in the real email):
+     ```sql
+     update auth.users set email_confirmed_at = now() where email = '9876543210@smato.local';
+     ```
+   - You only need to do this dashboard dance once. After that first login works, add everyone else from inside `/admin` itself — **Team access** section, mobile + PIN, no Supabase dashboard needed (see step 4 for the extra key that section needs).
+4. **Project Settings → API.** Copy the **Project URL**, the **`anon public`** key (sometimes labeled `publishable`), and the **`service_role`** key (labeled `secret`). The service role key powers the in-app "Team access" panel — keep it out of anything public; it never goes in a `NEXT_PUBLIC_` variable.
 
 ## 2. Run it locally
 
@@ -29,11 +33,12 @@ npm install
 cp .env.local.example .env.local
 ```
 
-Open `.env.local` and paste in your two values:
+Open `.env.local` and paste in your three values:
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhb...
+SUPABASE_SERVICE_ROLE_KEY=eyJhb...
 ```
 
 Then:
@@ -44,7 +49,7 @@ npm run dev
 
 Open http://localhost:3000 — you should see the two links.
 
-The anon key is safe in the browser. The rules in `setup.sql` mean it can only read ads, check a device in, and post a GPS fix. Only your signed-in admin account can upload or delete ads.
+The anon key is safe in the browser. The rules in `setup.sql` mean it can only read ads, check a device in, and post a GPS fix. Only your signed-in admin account can upload or delete ads. The service role key is different — it bypasses all of that, so it only ever lives in this env var, read server-side by `app/api/admin/create-admin`, never sent to the browser.
 
 ## 3. Deploy to Vercel
 
@@ -55,7 +60,7 @@ vercel
 
 Or push to GitHub and import the repo at vercel.com.
 
-**Then add the environment variables in Vercel:** Project → Settings → Environment Variables. Add both `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`, then redeploy. Without them the app builds but can't reach your data.
+**Then add the environment variables in Vercel:** Project → Settings → Environment Variables. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`, then redeploy. Without them the app builds but can't reach your data (and Team access won't be able to add new logins).
 
 You'll get a URL like `https://your-app.vercel.app`.
 

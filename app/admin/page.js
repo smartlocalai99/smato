@@ -21,7 +21,7 @@ export default function AdminPage() {
 
   if (session === undefined) return null;
   if (!session) return <SignIn />;
-  return <Console />;
+  return <Console session={session} />;
 }
 
 function SignIn() {
@@ -90,7 +90,7 @@ function SignIn() {
   );
 }
 
-function Console() {
+function Console({ session }) {
   const [autos, setAutos] = useState([]);
   const [ads, setAds] = useState([]);
   const [loadError, setLoadError] = useState("");
@@ -171,8 +171,89 @@ function Console() {
           {loadError && <div className="signin__error">{loadError}</div>}
           <AdsList ads={ads} onChange={loadAds} />
         </section>
+
+        <section>
+          <div className="section-head">
+            <h2>Team access</h2>
+            <span className="section-head__hint">who can sign in to this console</span>
+          </div>
+          <TeamAccess session={session} />
+        </section>
       </div>
     </div>
+  );
+}
+
+function TeamAccess({ session }) {
+  const [mobile, setMobile] = useState("");
+  const [pin, setPin] = useState("");
+  const [status, setStatus] = useState(null); // { type: 'error'|'ok'|'busy', text }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setStatus({ type: "busy", text: "Adding…" });
+    try {
+      const res = await fetch("/api/admin/create-admin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ mobile, pin }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Couldn't add that login.");
+      setStatus({ type: "ok", text: `${mobile} can now sign in.` });
+      setMobile("");
+      setPin("");
+    } catch (err) {
+      setStatus({ type: "error", text: err.message });
+    }
+  }
+
+  return (
+    <form className="upload-card" onSubmit={handleSubmit}>
+      <div className="upload-grid">
+        <div className="field">
+          <label htmlFor="teamMobile">Mobile number</label>
+          <input
+            id="teamMobile"
+            type="tel"
+            inputMode="numeric"
+            placeholder="98765 43210"
+            required
+            value={mobile}
+            onChange={(e) => setMobile(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="teamPin">PIN</label>
+          <input
+            id="teamPin"
+            type="text"
+            inputMode="numeric"
+            placeholder="6-digit PIN"
+            required
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="upload-actions">
+        <button className="btn btn--primary" type="submit" disabled={status?.type === "busy"}>
+          {status?.type === "busy" ? "Adding…" : "Add login"}
+        </button>
+        {status && (
+          <span
+            className={`upload-status ${status.type === "error" ? "is-error" : ""} ${
+              status.type === "ok" ? "is-ok" : ""
+            }`}
+          >
+            {status.text}
+          </span>
+        )}
+      </div>
+    </form>
   );
 }
 
