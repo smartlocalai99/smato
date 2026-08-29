@@ -33,7 +33,8 @@ describe("driver field validation", () => {
 
 describe("driver file validation", () => {
   it("accepts supported MIME types and the exact 5 MB boundary", () => {
-    for (const type of DRIVER_FILE_TYPES) {
+    for (const type of ["image/jpeg", "image/png", "image/webp"]) {
+      expect(DRIVER_FILE_TYPES.has(type)).toBe(true);
       expect(validateDriverFile(new File([new Uint8Array(MAX_DRIVER_FILE_BYTES)], "doc", { type }), "Photo")).toBeNull();
     }
   });
@@ -75,6 +76,7 @@ describe("database error mapping", () => {
 
   it("checks constraint before message and falls back to the database message", () => {
     expect(mapDriverDbError({ constraint: "drivers_mobile_key", message: "other" })).toBe("That mobile number is already registered.");
+    expect(mapDriverDbError({ constraint: "drivers_aadhaar_number_key", message: "mobile already exists" })).toBe("That Aadhaar number is already registered.");
     expect(mapDriverDbError({ message: "Database unavailable" })).toBe("Database unavailable");
     expect(mapDriverDbError({})).toBe("Couldn't save the driver.");
   });
