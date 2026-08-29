@@ -11,6 +11,7 @@ const SYNC_INTERVAL_MS = 30 * 60 * 1000;
 const TICK_INTERVAL_MS = 60 * 1000;
 const GPS_MIN_INTERVAL_MS = 30 * 1000;
 const HEARTBEAT_INTERVAL_MS = 60 * 1000;
+const IMAGE_DURATION_MS = 8 * 1000;
 
 export const dynamic = "force-dynamic";
 
@@ -214,6 +215,7 @@ function Player({ autoNumber }) {
           blob,
           filePath: ad.file_path,
           title: ad.title,
+          mediaType: ad.media_type || "video",
           updatedAt: Date.now(),
         });
       }
@@ -257,7 +259,13 @@ function Player({ autoNumber }) {
         const rec = storedById.get(ad.id);
         const url = URL.createObjectURL(rec.blob);
         objectUrlsRef.current.push(url);
-        return { id: ad.id, title: ad.title, url, sortOrder: ad.sort_order };
+        return {
+          id: ad.id,
+          title: ad.title,
+          url,
+          sortOrder: ad.sort_order,
+          mediaType: rec.mediaType || ad.media_type || "video",
+        };
       });
 
       setPlaylist(next);
@@ -293,26 +301,37 @@ function Player({ autoNumber }) {
   }, []);
 
   // --- playback ---------------------------------------------------------------
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !playlist.length) return;
-    const current = playlist[playIndex % playlist.length];
-    if (video.dataset.playingId === current.id) return;
-    video.dataset.playingId = current.id;
-    video.src = current.url;
-    video.play().catch(() => {});
-  }, [playlist, playIndex]);
+  const current = playlist.length ? playlist[playIndex % playlist.length] : null;
 
   function handleEnded() {
     setPlayIndex((i) => (playlist.length ? (i + 1) % playlist.length : 0));
   }
 
-  const current = playlist[playIndex % playlist.length];
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !current || current.mediaType === "image") return;
+    if (video.dataset.playingId === current.id) return;
+    video.dataset.playingId = current.id;
+    video.src = current.url;
+    video.play().catch(() => {});
+  }, [current]);
+
+  // Images don't fire an "ended" event, so give each one a fixed slot.
+  useEffect(() => {
+    if (!current || current.mediaType !== "image") return;
+    const timer = setTimeout(handleEnded, IMAGE_DURATION_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, playlist.length]);
 
   return (
     <div className="player">
       {current ? (
-        <video ref={videoRef} muted playsInline autoPlay onEnded={handleEnded} />
+        current.mediaType === "image" ? (
+          <img className="player__image" src={current.url} alt="" />
+        ) : (
+          <video ref={videoRef} muted playsInline autoPlay onEnded={handleEnded} />
+        )
       ) : (
         <IdleScreen />
       )}

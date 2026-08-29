@@ -288,7 +288,7 @@ function UploadForm({ autos, onUploaded }) {
     setStatus(null);
 
     if (!file) {
-      setStatus({ type: "error", text: "Choose a video file first." });
+      setStatus({ type: "error", text: "Choose a video or image file first." });
       return;
     }
 
@@ -311,6 +311,7 @@ function UploadForm({ autos, onUploaded }) {
         await supabase.from("autos").upsert({ auto_number: autoNumber }, { onConflict: "auto_number" });
       }
 
+      const mediaType = file.type.startsWith("image/") ? "image" : "video";
       const ext = file.name.split(".").pop();
       const path = `${autoNumber || "all"}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
@@ -324,6 +325,7 @@ function UploadForm({ autos, onUploaded }) {
         title: title.trim() || file.name,
         file_path: path,
         file_size: file.size,
+        media_type: mediaType,
         auto_number: autoNumber,
         start_date: startDate || null,
         end_date: endDate || null,
@@ -421,13 +423,19 @@ function UploadForm({ autos, onUploaded }) {
 
       <div className="upload-grid upload-grid--wide">
         <div className="field">
-          <label htmlFor="file">Video file</label>
+          <label htmlFor="file">Video or image file</label>
           <input
             id="file"
             type="file"
-            accept="video/*"
+            accept="video/*,image/*"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
           />
+          {file && (
+            <span className="upload-status">
+              {file.type.startsWith("image/") ? "Image" : "Video"} — shown for{" "}
+              {file.type.startsWith("image/") ? "8 seconds" : "its full length"} each time it plays.
+            </span>
+          )}
         </div>
       </div>
 
@@ -484,6 +492,7 @@ function AdsList({ ads, onChange }) {
             </div>
             <div className="ad-row__meta">
               <span className="tag">{ad.auto_number || "all autos"}</span>
+              <span className="tag">{ad.media_type === "image" ? "image" : "video"}</span>
               <span>
                 {formatHour(ad.start_hour)}–{formatHour(ad.end_hour)}
               </span>

@@ -101,7 +101,7 @@ In `/admin`, under **Add an ad**:
 2. **From / Until** — the hours of the day it should play (24h window, wraps past midnight if `From` is later than `Until`).
 3. Optional start/end date to run it only for a campaign window.
 4. **Play order** — when more than one ad is active at once on an auto, they rotate in this order.
-5. Choose the video file and upload.
+5. Choose a video **or image** file and upload — a photo plays for 8 seconds each time its turn comes up in the rotation, a video plays for its full length.
 
 The tablet picks it up on its next sync (every 30 minutes, or immediately if you reload `/player` while online). Old videos for that auto are only deleted from the tablet after the new ones have fully downloaded, so a dropped connection can never leave the screen blank.
 

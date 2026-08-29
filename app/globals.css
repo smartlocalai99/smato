@@ -522,7 +522,8 @@ h3 {
   background: #000;
   overflow: hidden;
 }
-.player video {
+.player video,
+.player__image {
   width: 100%;
   height: 100%;
   object-fit: contain;

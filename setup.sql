@@ -32,6 +32,7 @@ create table if not exists ads (
   title text not null,
   file_path text not null,
   file_size bigint,
+  media_type text not null default 'video' check (media_type in ('video', 'image')),
   auto_number text references autos(auto_number) on delete cascade,
   start_date date,
   end_date date,
@@ -44,6 +45,12 @@ create table if not exists ads (
 
 create index if not exists ads_auto_number_idx on ads (auto_number);
 create index if not exists ads_active_idx on ads (active);
+
+-- Running this again on a project that already has `ads` from before the
+-- media_type column existed just adds it — safe to re-run either way.
+alter table ads add column if not exists media_type text not null default 'video';
+alter table ads drop constraint if exists ads_media_type_check;
+alter table ads add constraint ads_media_type_check check (media_type in ('video', 'image'));
 
 -- ---------------------------------------------------------------------------
 -- Storage bucket for the video files.
