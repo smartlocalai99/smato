@@ -638,6 +638,15 @@ h3 {
   color: var(--text);
   text-align: right;
 }
+.hud__row--wrap {
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.hud__row--wrap span:last-child {
+  text-align: left;
+  word-break: break-all;
+  font-size: 0.7rem;
+}
 .hud__close {
   background: none;
   border: none;

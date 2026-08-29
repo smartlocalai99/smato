@@ -404,8 +404,21 @@ function Player({ autoNumber }) {
     const onCanPlay = () => {
       if (video.paused) tryPlay();
     };
+    // play() rejecting only covers autoplay being blocked. A codec/format
+    // the device genuinely can't decode fails differently — the element
+    // loads, play() may not even reject, and it just never renders a frame.
+    // That shows up here instead, on video.error.
+    const onError = () => {
+      const codeNames = { 1: "aborted", 2: "network", 3: "decode", 4: "format not supported" };
+      const code = video.error?.code;
+      setHud((h) => ({
+        ...h,
+        playError: `video error: ${codeNames[code] || "unknown"} (code ${code ?? "?"})`,
+      }));
+    };
     video.addEventListener("playing", onPlaying);
     video.addEventListener("canplay", onCanPlay);
+    video.addEventListener("error", onError);
     const retryTimer = setInterval(() => {
       if (video.paused && video.dataset.playingId === current.id) tryPlay();
     }, 3000);
@@ -413,6 +426,7 @@ function Player({ autoNumber }) {
     return () => {
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("canplay", onCanPlay);
+      video.removeEventListener("error", onError);
       clearInterval(retryTimer);
     };
   }, [current]);
@@ -478,6 +492,10 @@ function Hud({ autoNumber, hud, current, playlistLength, onClose }) {
       <div className="hud__row">
         <span>network</span>
         <span>{hud.online ? "online" : "offline"}</span>
+      </div>
+      <div className="hud__row hud__row--wrap">
+        <span>browser</span>
+        <span>{typeof navigator !== "undefined" ? navigator.userAgent : "—"}</span>
       </div>
       <div className="hud__row">
         <span>last sync</span>
