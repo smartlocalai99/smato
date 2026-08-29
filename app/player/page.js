@@ -7,7 +7,12 @@ import { adsForAuto, isAdActiveNow } from "@/lib/time";
 
 const AUTO_KEY = "smato.autoNumber";
 const LABEL_KEY = "smato.autoLabel";
-const SYNC_INTERVAL_MS = 2 * 60 * 1000;
+// Ads sync is event-driven (Supabase Realtime fires the moment an ad is
+// added/edited/deleted), not on a timer. This interval only exists as a
+// safety net in case the realtime connection silently drops — deliberately
+// rare so it stays "sync when something actually changed," not polling.
+const SYNC_FALLBACK_INTERVAL_MS = 60 * 60 * 1000;
+const SW_UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 const TICK_INTERVAL_MS = 60 * 1000;
 const GPS_MIN_INTERVAL_MS = 30 * 1000;
 const HEARTBEAT_INTERVAL_MS = 60 * 1000;
@@ -130,7 +135,7 @@ function Player({ autoNumber }) {
       .then((registration) => {
         const checkForUpdate = () => registration.update().catch(() => {});
         checkForUpdate();
-        updateInterval = setInterval(checkForUpdate, SYNC_INTERVAL_MS);
+        updateInterval = setInterval(checkForUpdate, SW_UPDATE_CHECK_INTERVAL_MS);
       })
       .catch(() => {});
 
@@ -304,7 +309,7 @@ function Player({ autoNumber }) {
   useEffect(() => {
     rebuildPlaylist();
     sync();
-    const syncId = setInterval(sync, SYNC_INTERVAL_MS);
+    const syncId = setInterval(sync, SYNC_FALLBACK_INTERVAL_MS);
     return () => clearInterval(syncId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -314,6 +319,17 @@ function Player({ autoNumber }) {
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
   }, [sync]);
+
+  // The real trigger: sync the moment an ad is added, edited, or deleted,
+  // instead of waiting on a timer. Requires Realtime turned on for the
+  // `ads` table (Supabase → Database → Replication).
+  useEffect(() => {
+    const channel = supabase
+      .channel(`player-ads-${autoNumber}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "ads" }, () => sync())
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [autoNumber, sync]);
 
   // Re-check which ads are time-active once a minute, offline-safe.
   useEffect(() => {
