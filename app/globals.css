@@ -16,12 +16,42 @@
   --teal: #34d8c4;
   --green: #3ecf8e;
   --red: #ff5c5c;
+  /* Text sitting on top of the amber accent (buttons, badges) stays dark
+     regardless of theme — amber is never dark enough for light text. */
+  --on-amber: #16130a;
 
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
 
   --radius: 10px;
+}
+
+/* ---------------------------------------------------------------------------
+   Admin panel — bright daytime desk, not the dispatch-console dark. Scoped
+   to .console (the signed-in dashboard) and .signin (its sign-in card) only:
+   /player stays dark since it's a video screen, and the landing page keeps
+   the console identity as the front door to both.
+--------------------------------------------------------------------------- */
+.console,
+.signin {
+  --ink: #f5f5f2;
+  --panel: #ffffff;
+  --panel-2: #f0f0ec;
+  --line: #e1e1db;
+  --text: #14171a;
+  --text-dim: #5b6259;
+  --text-faint: #7d8479;
+
+  --teal: #0e8e7c;
+  --green: #1e9e63;
+  --red: #c7362c;
+
+  color: var(--text);
+}
+
+.console .console__bar {
+  background: rgba(255, 255, 255, 0.85);
 }
 
 * {
@@ -236,7 +266,7 @@ h3 {
 .btn--primary {
   background: var(--amber);
   border-color: var(--amber);
-  color: #16130a;
+  color: var(--on-amber);
 }
 .btn--primary:hover {
   background: #ffc250;
@@ -258,6 +288,7 @@ h3 {
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
+  background: var(--ink);
 }
 .signin__card {
   width: 100%;

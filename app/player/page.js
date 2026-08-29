@@ -109,10 +109,35 @@ function Player({ autoNumber }) {
   }, []);
 
   // --- service worker: app shell keeps loading with no network --------------
+  // Also what makes a fresh deploy actually reach the tablet: once the new
+  // worker takes over, reload once to pick it up instead of quietly running
+  // whatever build happened to load first, possibly forever.
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
-    }
+    if (!("serviceWorker" in navigator)) return;
+
+    let reloaded = false;
+    let updateInterval;
+
+    const onControllerChange = () => {
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((registration) => {
+        const checkForUpdate = () => registration.update().catch(() => {});
+        checkForUpdate();
+        updateInterval = setInterval(checkForUpdate, SYNC_INTERVAL_MS);
+      })
+      .catch(() => {});
+
+    return () => {
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      clearInterval(updateInterval);
+    };
   }, []);
 
   // --- network status ---------------------------------------------------------
