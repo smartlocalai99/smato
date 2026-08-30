@@ -94,6 +94,7 @@ function Player({ autoNumber }) {
     gps: null,
     gpsError: null,
     playError: null,
+    cacheNames: [],
     now: new Date(),
   });
 
@@ -112,6 +113,13 @@ function Player({ autoNumber }) {
       setHudOpen((v) => !v);
     }
   }, []);
+
+  // Refresh cache/SW state every time the HUD opens, so "did the fix
+  // actually reach this tablet yet" has a real answer instead of a guess.
+  useEffect(() => {
+    if (!hudOpen || typeof caches === "undefined") return;
+    caches.keys().then((names) => setHud((h) => ({ ...h, cacheNames: names })));
+  }, [hudOpen]);
 
   // --- service worker: app shell keeps loading with no network --------------
   // Also what makes a fresh deploy actually reach the tablet: once the new
@@ -498,6 +506,16 @@ function Hud({ autoNumber, hud, current, playlistLength, onClose }) {
       <div className="hud__row">
         <span>gps age</span>
         <span>{hud.gps ? `${Math.round((Date.now() - hud.gps.at.getTime()) / 1000)}s` : "—"}</span>
+      </div>
+      <div className="hud__row">
+        <span>sw active</span>
+        <span>
+          {typeof navigator !== "undefined" && navigator.serviceWorker?.controller ? "yes" : "no"}
+        </span>
+      </div>
+      <div className="hud__row hud__row--wrap">
+        <span>cache versions</span>
+        <span>{hud.cacheNames.length ? hud.cacheNames.join(", ") : "—"}</span>
       </div>
     </div>
   );
