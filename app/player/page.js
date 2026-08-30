@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase, adFileUrl, ADS_CHANNEL_NAME } from "@/lib/supabase";
 import { adCacheUrl, getDownloadedAdIds, putAd, deleteAds } from "@/lib/adCache";
-import { adsForAuto, isAdActiveNow } from "@/lib/time";
+import { adsForAuto, isAdActiveNow, hasCampaignEnded } from "@/lib/time";
 
 const AUTO_KEY = "smato.autoNumber";
 const LABEL_KEY = "smato.autoLabel";
@@ -241,9 +241,13 @@ function Player({ autoNumber }) {
 
       const relevant = adsForAuto(ads || [], autoNumber);
       const existingIds = new Set(await getDownloadedAdIds());
-      const wantedIds = new Set(relevant.map((a) => a.id));
+      // Ads whose campaign has already ended aren't worth keeping on disk —
+      // pausing, deleting, or letting the end date pass all clear the
+      // tablet's local copy the same way, not just its spot in rotation.
+      const notExpired = relevant.filter((ad) => !hasCampaignEnded(ad));
+      const wantedIds = new Set(notExpired.map((a) => a.id));
 
-      for (const ad of relevant) {
+      for (const ad of notExpired) {
         if (existingIds.has(ad.id)) continue;
         const res = await fetch(adFileUrl(ad.file_path));
         if (!res.ok) continue;
@@ -421,11 +425,15 @@ function Player({ autoNumber }) {
     };
   }, [current]);
 
-  // Images don't fire an "ended" event, so give each one a fixed slot.
+  // Images don't fire an "ended" event, so give each one a fixed slot. A
+  // single-image rotation never changes "current" between advances (same
+  // array, same object, every time), so a one-shot setTimeout tied to that
+  // dependency would only ever fire once — setInterval keeps re-firing on
+  // its own without needing the effect to re-run at all.
   useEffect(() => {
     if (!current || current.mediaType !== "image") return;
-    const timer = setTimeout(handleEnded, IMAGE_DURATION_MS);
-    return () => clearTimeout(timer);
+    const timer = setInterval(handleEnded, IMAGE_DURATION_MS);
+    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, playlist.length]);
 
@@ -435,7 +443,18 @@ function Player({ autoNumber }) {
         current.mediaType === "image" ? (
           <img className="player__image" src={current.url} alt="" />
         ) : (
-          <video ref={videoRef} muted playsInline autoPlay onEnded={handleEnded} />
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            autoPlay
+            // A single-ad rotation never actually changes "current" between
+            // one play and the next (same array, same object, same id), so
+            // nothing tells React or the src-assignment effect to restart
+            // it. Native loop sidesteps that entirely for the one-ad case.
+            loop={playlist.length === 1}
+            onEnded={handleEnded}
+          />
         )
       ) : (
         <IdleScreen />
