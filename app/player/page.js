@@ -7,6 +7,31 @@ import { adsForAuto, isAdActiveNow, hasCampaignEnded } from "@/lib/time";
 
 const AUTO_KEY = "smato.autoNumber";
 const LABEL_KEY = "smato.autoLabel";
+const ADS_SNAPSHOT_KEY = "smato.lastAdsSnapshot";
+
+// A tiny local copy of the last-known schedule (titles, dates, sort order —
+// not the videos themselves, those are already offline in Cache Storage).
+// Without this, a tablet that reboots while genuinely offline — power cut,
+// router down overnight — would fail its very first fetch of "what's the
+// schedule" and sit on the idle screen despite every video already being
+// downloaded and ready to play.
+function saveAdsSnapshot(ads) {
+  try {
+    localStorage.setItem(ADS_SNAPSHOT_KEY, JSON.stringify(ads));
+  } catch {
+    // best-effort only — worst case, offline cold start has nothing to fall
+    // back to and waits for the next successful sync like it used to.
+  }
+}
+
+function loadAdsSnapshot() {
+  try {
+    const raw = localStorage.getItem(ADS_SNAPSHOT_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
 // Ads sync is event-driven (Supabase Realtime fires the moment an ad is
 // added/edited/deleted), not on a timer. This interval only exists as a
 // safety net in case the realtime connection silently drops — deliberately
@@ -238,6 +263,7 @@ function Player({ autoNumber }) {
         .eq("active", true)
         .or(`auto_number.eq.${autoNumber},auto_number.is.null`);
       if (error) throw error;
+      saveAdsSnapshot(ads || []);
 
       const relevant = adsForAuto(ads || [], autoNumber);
       const existingIds = new Set(await getDownloadedAdIds());
@@ -276,12 +302,19 @@ function Player({ autoNumber }) {
 
       let scheduleAds = adsHint;
       if (!scheduleAds) {
-        const { data } = await supabase
-          .from("ads")
-          .select("*")
-          .eq("active", true)
-          .or(`auto_number.eq.${autoNumber},auto_number.is.null`);
-        scheduleAds = adsForAuto(data || [], autoNumber);
+        try {
+          const { data, error } = await supabase
+            .from("ads")
+            .select("*")
+            .eq("active", true)
+            .or(`auto_number.eq.${autoNumber},auto_number.is.null`);
+          if (error) throw error;
+          scheduleAds = adsForAuto(data || [], autoNumber);
+        } catch {
+          // Offline with nothing passed in — fall back to the schedule as
+          // of the last successful sync instead of coming up empty.
+          scheduleAds = adsForAuto(loadAdsSnapshot(), autoNumber);
+        }
       }
 
       const now = new Date();
