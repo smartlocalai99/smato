@@ -801,18 +801,21 @@ h3 {
   .driver-table thead { display: none; }
   .driver-table caption { border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 0.7rem; }
   .driver-table tbody { display: grid; gap: 0.7rem; }
-  .driver-table tbody tr { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; padding: 0.2rem 0; }
+  .driver-table tbody tr,
+  .driver-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; padding: 0.2rem 0; }
   .driver-table tbody tr:hover { background: var(--panel); }
   .driver-table th,
   .driver-table td { align-items: baseline; border-bottom: 1px solid var(--line); display: grid; gap: 0.75rem; grid-template-columns: minmax(7.5rem, 0.85fr) minmax(0, 1.15fr); padding: 0.6rem 0.75rem; }
   .driver-table th::before,
   .driver-table td::before { color: var(--text-faint); content: attr(data-label); font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.04em; text-transform: uppercase; }
-  .driver-table__driver { align-items: center !important; min-width: 0; }
+  .driver-table__driver { align-items: center !important; gap: 0.5rem; grid-template-columns: minmax(5.25rem, 0.85fr) 2rem minmax(0, 1.15fr) !important; min-width: 0; }
+  .driver-table__driver::before { align-self: center; }
   .driver-table__driver > span:last-child { min-width: 0; overflow-wrap: anywhere; }
   .driver-table__action { display: flex !important; justify-content: flex-end; padding-top: 0.7rem !important; }
   .driver-table__action::before { display: none; }
   .driver-table__action .btn { width: 100%; }
-  .driver-document-status { width: 100%; }
+  .driver-document-status { grid-template-columns: 1fr; width: 100%; }
+  .driver-document-status__item { overflow-wrap: anywhere; white-space: normal; }
   .ad-row {
     grid-template-columns: 1fr;
   }

@@ -67,7 +67,7 @@ export default function DriverList({ drivers = [], photoUrls = {} }) {
               {matchingDrivers.map((driver) => {
                 const photoUrl = photoUrls[driver.photo_path];
                 return (
-                  <tr key={driver.id}>
+                  <tr className="driver-card" key={driver.id}>
                     <th className="driver-table__driver" scope="row" data-label="Driver">
                       {photoUrl ? (
                         <img className="driver-table__photo" src={photoUrl} alt={`Photo of ${driver.name}`} />
