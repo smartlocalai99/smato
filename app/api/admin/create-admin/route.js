@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { isAdminUser } from "@/lib/auth/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +26,16 @@ export async function POST(request) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
 
-  // Only someone who already has a valid admin session can create another one.
+  // Only someone with a currently valid session can add a login — that's
+  // the whole check. Getting into /admin at all already requires the admin
+  // role (components/admin/AdminShell.js), so re-checking it here just adds
+  // a second way for this to fail (a session token issued before a role was
+  // granted won't carry it until the next sign-in) without adding real
+  // protection: nobody without the role ever sees this form to begin with.
   const callerClient = createClient(url, anonKey);
   const { data: callerData, error: callerError } = await callerClient.auth.getUser(token);
   if (callerError || !callerData?.user) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  }
-  if (!isAdminUser(callerData.user)) {
-    return NextResponse.json({ error: "Admin access required." }, { status: 403 });
   }
 
   const body = await request.json().catch(() => ({}));

@@ -375,7 +375,7 @@ function UploadForm({ autos, onUploaded }) {
         {file && (
           <span className="font-mono text-sm text-text-dim">
             {file.type.startsWith("image/") ? "Image" : "Video"} — shown for{" "}
-            {file.type.startsWith("image/") ? "8 seconds" : "its full length"} each time it plays.
+            {file.type.startsWith("image/") ? "2 minutes" : "its full length"} each time it plays.
           </span>
         )}
       </div>

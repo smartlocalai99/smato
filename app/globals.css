@@ -76,9 +76,10 @@
 a {
   color: var(--teal);
   text-decoration: none;
+  transition: opacity 0.15s ease;
 }
 a:hover {
-  text-decoration: underline;
+  opacity: 0.75;
 }
 
 button,

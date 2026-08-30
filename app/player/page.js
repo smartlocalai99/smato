@@ -41,7 +41,7 @@ const SW_UPDATE_CHECK_INTERVAL_MS = 3 * 60 * 1000;
 const TICK_INTERVAL_MS = 60 * 1000;
 const GPS_MIN_INTERVAL_MS = 30 * 1000;
 const HEARTBEAT_INTERVAL_MS = 60 * 1000;
-const IMAGE_DURATION_MS = 8 * 1000;
+const IMAGE_DURATION_MS = 2 * 60 * 1000;
 
 export const dynamic = "force-dynamic";
 

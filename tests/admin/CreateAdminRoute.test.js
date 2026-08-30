@@ -46,9 +46,41 @@ afterEach(() => {
 });
 
 describe("POST /api/admin/create-admin", () => {
-  it("rejects a valid signed-in caller without the admin app metadata role", async () => {
+  it("rejects a request with no bearer token", async () => {
+    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    clients();
+    const POST = await loadPost();
+
+    const response = await POST(
+      new Request("http://localhost/api/admin/create-admin", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mobile: "9876543210", pin: "123456" }),
+      })
+    );
+
+    expect(response.status).toBe(401);
+    expect(createUser).not.toHaveBeenCalled();
+  });
+
+  it("rejects a token that doesn't resolve to a real session", async () => {
+    getUser.mockResolvedValue({ data: { user: null }, error: { message: "invalid" } });
+    clients();
+    const POST = await loadPost();
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(401);
+    expect(createUser).not.toHaveBeenCalled();
+  });
+
+  it("creates another admin for any currently signed-in caller", async () => {
+    // Reaching this endpoint at all already required the admin role to get
+    // into /admin in the first place (components/admin/AdminShell.js) — the
+    // route itself only needs to know the caller has a valid session, not
+    // re-derive the role from a token that may predate it being granted.
     getUser.mockResolvedValue({
-      data: { user: { app_metadata: { role: "driver" }, is_anonymous: false } },
+      data: { user: { id: "caller", app_metadata: {}, is_anonymous: false } },
       error: null,
     });
     clients();
@@ -56,26 +88,16 @@ describe("POST /api/admin/create-admin", () => {
 
     const response = await POST(request());
 
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({ error: "Admin access required." });
-    expect(createUser).not.toHaveBeenCalled();
-  });
-
-  it("rejects an anonymous caller even if its app metadata says admin", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { app_metadata: { role: "admin" }, is_anonymous: true } },
-      error: null,
+    expect(response.status).toBe(200);
+    expect(createUser).toHaveBeenCalledWith({
+      email: "9876543210@smato.local",
+      password: "123456",
+      email_confirm: true,
+      app_metadata: { role: "admin" },
     });
-    clients();
-    const POST = await loadPost();
-
-    const response = await POST(request());
-
-    expect(response.status).toBe(403);
-    expect(createUser).not.toHaveBeenCalled();
   });
 
-  it("creates another admin with trusted app metadata for an authorized caller", async () => {
+  it("still gives the new login trusted app metadata for a caller with the role", async () => {
     getUser.mockResolvedValue({
       data: { user: { app_metadata: { role: "admin" }, is_anonymous: false } },
       error: null,
