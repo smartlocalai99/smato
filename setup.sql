@@ -85,20 +85,34 @@ drop policy if exists "autos_update_checkin" on autos;
 create policy "autos_update_checkin" on autos for update using (true) with check (true);
 
 drop policy if exists "autos_delete_admin" on autos;
-create policy "autos_delete_admin" on autos for delete using (auth.role() = 'authenticated');
+create policy "autos_delete_admin" on autos for delete
+  to authenticated
+  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 -- Ads: public read (only active ones, everything else is admin-only).
 drop policy if exists "ads_select_all" on ads;
 create policy "ads_select_all" on ads for select using (true);
 
 drop policy if exists "ads_write_admin" on ads;
-create policy "ads_write_admin" on ads for insert with check (auth.role() = 'authenticated');
+create policy "ads_write_admin" on ads for insert
+  to authenticated
+  with check ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 drop policy if exists "ads_update_admin" on ads;
-create policy "ads_update_admin" on ads for update using (auth.role() = 'authenticated');
+create policy "ads_update_admin" on ads for update
+  to authenticated
+  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+  with check ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 drop policy if exists "ads_delete_admin" on ads;
-create policy "ads_delete_admin" on ads for delete using (auth.role() = 'authenticated');
+create policy "ads_delete_admin" on ads for delete
+  to authenticated
+  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 -- Storage: anyone can read video files, only a signed-in admin can upload
 -- or delete them.
@@ -108,11 +122,17 @@ create policy "ads_bucket_read" on storage.objects for select
 
 drop policy if exists "ads_bucket_write_admin" on storage.objects;
 create policy "ads_bucket_write_admin" on storage.objects for insert
-  with check (bucket_id = 'ads' and auth.role() = 'authenticated');
+  to authenticated
+  with check (bucket_id = 'ads'
+    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 drop policy if exists "ads_bucket_delete_admin" on storage.objects;
 create policy "ads_bucket_delete_admin" on storage.objects for delete
-  using (bucket_id = 'ads' and auth.role() = 'authenticated');
+  to authenticated
+  using (bucket_id = 'ads'
+    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 -- ---------------------------------------------------------------------------
 -- drivers: private driver records and identity documents. File paths are
@@ -154,23 +174,28 @@ grant select, insert, update, delete on table drivers to authenticated;
 drop policy if exists "drivers_select_admin" on drivers;
 create policy "drivers_select_admin" on drivers for select
   to authenticated
-  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 drop policy if exists "drivers_insert_admin" on drivers;
 create policy "drivers_insert_admin" on drivers for insert
   to authenticated
-  with check ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+  with check ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
-drop policy if exists "drivers_update_admin" on drivers for update;
+drop policy if exists "drivers_update_admin" on drivers;
 create policy "drivers_update_admin" on drivers for update
   to authenticated
-  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true')
-  with check ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+  with check ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 drop policy if exists "drivers_delete_admin" on drivers;
 create policy "drivers_delete_admin" on drivers for delete
   to authenticated
-  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('driver-documents', 'driver-documents', false, 5242880,
@@ -182,27 +207,32 @@ drop policy if exists "driver_documents_select_admin" on storage.objects;
 create policy "driver_documents_select_admin" on storage.objects for select
   to authenticated
   using (bucket_id = 'driver-documents'
-    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 drop policy if exists "driver_documents_insert_admin" on storage.objects;
 create policy "driver_documents_insert_admin" on storage.objects for insert
   to authenticated
   with check (bucket_id = 'driver-documents'
-    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 drop policy if exists "driver_documents_update_admin" on storage.objects;
 create policy "driver_documents_update_admin" on storage.objects for update
   to authenticated
   using (bucket_id = 'driver-documents'
-    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true')
+    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
   with check (bucket_id = 'driver-documents'
-    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 drop policy if exists "driver_documents_delete_admin" on storage.objects;
 create policy "driver_documents_delete_admin" on storage.objects for delete
   to authenticated
   using (bucket_id = 'driver-documents'
-    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true');
+    and (select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 -- Seed the one test auto so it shows up in the admin dropdown immediately.
 insert into autos (auto_number, label)

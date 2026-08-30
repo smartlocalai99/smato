@@ -132,8 +132,11 @@ describe("registerDriver", () => {
 
   it("removes every uploaded document and the inserted row when auto creation fails", async () => {
     const autoError = new Error("Vehicle link failed");
-    const { api } = createApi();
-    api.upsertAuto.mockRejectedValue(autoError);
+    const { api, events } = createApi();
+    api.upsertAuto.mockImplementation(async (plate) => {
+      events.push(["upsertAuto", plate]);
+      throw autoError;
+    });
 
     await expect(registerDriver(registrationInput(), api)).rejects.toThrow("Vehicle link failed");
 
@@ -142,6 +145,49 @@ describe("registerDriver", () => {
     expect(api.removeFiles).toHaveBeenCalledWith(uploadedPaths);
     expect(api.remove).toHaveBeenCalledWith("driver-1");
     expect(api.update).toHaveBeenCalledTimes(1);
+    expect(events.map(([operation]) => operation)).toEqual([
+      "insert", "upload", "upload", "upload", "update", "upsertAuto", "remove", "removeFiles",
+    ]);
+  });
+
+  it("retains referenced uploads and surfaces incomplete cleanup when row deletion fails", async () => {
+    const autoError = new Error("Vehicle link failed");
+    const rollbackError = new Error("Row deletion failed");
+    const { api } = createApi();
+    api.upsertAuto.mockRejectedValue(autoError);
+    api.remove.mockRejectedValue(rollbackError);
+
+    const result = registerDriver(registrationInput(), api);
+
+    await expect(result).rejects.toMatchObject({
+      code: "DRIVER_CLEANUP_INCOMPLETE",
+      driverId: "driver-1",
+      message: expect.stringMatching(/record.*still references.*documents/i),
+    });
+    expect(api.removeFiles).not.toHaveBeenCalled();
+  });
+
+  it("retries orphan cleanup and surfaces the paths when registration cleanup stays incomplete", async () => {
+    const uploadError = new Error("Upload failed");
+    const cleanupError = new Error("Storage unavailable");
+    const { api } = createApi({
+      upload: (_path, _file) => {
+        if (api.upload.mock.calls.length === 2) throw uploadError;
+      },
+    });
+    api.removeFiles.mockRejectedValue(cleanupError);
+
+    const cleanupFailure = await registerDriver(registrationInput(), api).catch((error) => error);
+    const [[firstUploadedPath]] = api.upload.mock.calls;
+
+    expect(cleanupFailure).toMatchObject({
+      code: "DRIVER_CLEANUP_INCOMPLETE",
+      paths: [firstUploadedPath],
+      message: expect.stringMatching(/cleanup is incomplete after 3 attempts/i),
+    });
+    expect(api.remove.mock.invocationCallOrder[0])
+      .toBeLessThan(api.removeFiles.mock.invocationCallOrder[0]);
+    expect(api.removeFiles).toHaveBeenCalledTimes(3);
   });
 
   it("rejects a missing required document before inserting a row", async () => {
@@ -243,5 +289,108 @@ describe("saveDriver", () => {
     });
     expect(api.removeFiles).toHaveBeenCalledWith([newPath]);
     expect(api.removeFiles).not.toHaveBeenCalledWith(["driver-1/aadhaar-old.png"]);
+  });
+
+  it("waits for database restoration before deleting newly uploaded replacements", async () => {
+    const current = currentDriver();
+    const autoError = new Error("Vehicle link failed");
+    let finishRestore;
+    const { api, events } = createApi();
+    api.update.mockImplementation(async (id, patch) => {
+      events.push(["update", id, patch]);
+      if (api.update.mock.calls.length === 2) {
+        return new Promise((resolve) => {
+          finishRestore = () => resolve(current);
+        });
+      }
+      return current;
+    });
+    api.upsertAuto.mockImplementation(async (plate) => {
+      events.push(["upsertAuto", plate]);
+      throw autoError;
+    });
+
+    const result = saveDriver({
+      current,
+      values,
+      replacements: { aadhaar: file("new-aadhaar.png") },
+    }, api);
+
+    await vi.waitFor(() => expect(api.update).toHaveBeenCalledTimes(2));
+    expect(api.removeFiles).not.toHaveBeenCalled();
+
+    finishRestore();
+    await expect(result).rejects.toThrow("Vehicle link failed");
+    expect(events.map(([operation]) => operation)).toEqual([
+      "upload", "update", "upsertAuto", "update", "removeFiles",
+    ]);
+  });
+
+  it("does not delete new files still referenced after a failed database rollback", async () => {
+    const current = currentDriver();
+    const autoError = new Error("Vehicle link failed");
+    const rollbackError = new Error("Restore failed");
+    const { api } = createApi();
+    api.update
+      .mockResolvedValueOnce(current)
+      .mockRejectedValueOnce(rollbackError);
+    api.upsertAuto.mockRejectedValue(autoError);
+
+    const result = saveDriver({
+      current,
+      values,
+      replacements: { aadhaar: file("new-aadhaar.png") },
+    }, api);
+
+    const [[newPath]] = api.upload.mock.calls;
+    await expect(result).rejects.toMatchObject({
+      code: "DRIVER_CLEANUP_INCOMPLETE",
+      driverId: "driver-1",
+      paths: [newPath],
+      message: expect.stringMatching(/record.*may still reference.*documents/i),
+    });
+    expect(api.removeFiles).not.toHaveBeenCalled();
+  });
+
+  it("retries superseded-file deletion before reporting a successful edit", async () => {
+    const cleanupError = new Error("Storage unavailable");
+    const current = currentDriver();
+    const { api } = createApi();
+    api.removeFiles
+      .mockRejectedValueOnce(cleanupError)
+      .mockRejectedValueOnce(cleanupError)
+      .mockResolvedValueOnce(undefined);
+
+    await expect(saveDriver({
+      current,
+      values,
+      replacements: { aadhaar: file("new-aadhaar.png") },
+    }, api)).resolves.toEqual(currentDriver());
+
+    expect(api.removeFiles).toHaveBeenCalledTimes(3);
+    expect(api.removeFiles).toHaveBeenCalledWith(["driver-1/aadhaar-old.png"]);
+  });
+
+  it("surfaces superseded PII paths when deletion remains incomplete after retries", async () => {
+    const cleanupError = new Error("Storage unavailable");
+    const current = currentDriver();
+    const { api } = createApi();
+    api.removeFiles.mockRejectedValue(cleanupError);
+
+    const cleanupFailure = await saveDriver({
+      current,
+      values,
+      replacements: { aadhaar: file("new-aadhaar.png") },
+    }, api).catch((error) => error);
+
+    expect(cleanupFailure).toMatchObject({
+      code: "DRIVER_CLEANUP_INCOMPLETE",
+      driverId: "driver-1",
+      paths: ["driver-1/aadhaar-old.png"],
+      message: expect.stringMatching(/changes were saved.*cleanup is incomplete after 3 attempts/i),
+    });
+    expect(cleanupFailure.message).toContain("driver-1/aadhaar-old.png");
+    expect(api.update).toHaveBeenCalledTimes(1);
+    expect(api.removeFiles).toHaveBeenCalledTimes(3);
   });
 });

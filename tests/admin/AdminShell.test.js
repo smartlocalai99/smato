@@ -11,6 +11,13 @@ const auth = vi.hoisted(() => ({
 
 const navigation = vi.hoisted(() => ({ pathname: "/admin" }));
 
+function adminSession() {
+  return {
+    access_token: "token",
+    user: { app_metadata: { role: "admin" }, is_anonymous: false },
+  };
+}
+
 vi.mock("@/lib/supabase", () => ({ supabase: { auth } }));
 vi.mock("next/navigation", () => ({ usePathname: () => navigation.pathname }));
 
@@ -49,7 +56,7 @@ describe("AdminShell", () => {
   });
 
   it("renders admin navigation and children for an authenticated session", async () => {
-    auth.getSession.mockResolvedValue({ data: { session: { access_token: "token" } } });
+    auth.getSession.mockResolvedValue({ data: { session: adminSession() } });
     subscribe();
     navigation.pathname = "/admin/drivers";
 
@@ -59,12 +66,12 @@ describe("AdminShell", () => {
     const navigationElement = screen.getByRole("navigation", { name: "Admin navigation" });
     expect(within(navigationElement).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/admin");
     expect(within(navigationElement).getByRole("link", { name: "Drivers" })).toHaveAttribute("href", "/admin/drivers");
-    expect(within(navigationElement).getByRole("link", { name: "Add driver" })).toHaveAttribute("href", "/admin/drivers/new");
+    expect(within(navigationElement).getByRole("link", { name: "Register driver" })).toHaveAttribute("href", "/admin/drivers/new");
     expect(within(navigationElement).getByRole("link", { name: "Drivers" })).toHaveAttribute("aria-current", "page");
   });
 
   it("signs out from the authenticated shell", async () => {
-    auth.getSession.mockResolvedValue({ data: { session: { access_token: "token" } } });
+    auth.getSession.mockResolvedValue({ data: { session: adminSession() } });
     auth.signOut.mockResolvedValue({ error: null });
     subscribe();
 
@@ -72,6 +79,28 @@ describe("AdminShell", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
 
+    expect(auth.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("denies a signed-in non-admin account and offers sign out", async () => {
+    auth.getSession.mockResolvedValue({
+      data: {
+        session: {
+          access_token: "token",
+          user: { app_metadata: { role: "driver" }, is_anonymous: false },
+        },
+      },
+    });
+    auth.signOut.mockResolvedValue({ error: null });
+    subscribe();
+
+    render(createElement(AdminShell, null, "Dashboard content"));
+
+    expect(await screen.findByRole("heading", { name: "Admin access required" })).toBeInTheDocument();
+    expect(screen.getByText(/signed in, but this account does not have admin access/i)).toBeInTheDocument();
+    expect(screen.queryByText("Dashboard content")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(auth.signOut).toHaveBeenCalledTimes(1);
   });
 });

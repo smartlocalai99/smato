@@ -33,6 +33,12 @@ describe("driver field validation", () => {
 
 describe("driver file validation", () => {
   it("accepts supported MIME types and the exact 5 MB boundary", () => {
+    expect([...DRIVER_FILE_TYPES].sort()).toEqual([
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ]);
+
     for (const type of ["image/jpeg", "image/png", "image/webp"]) {
       expect(DRIVER_FILE_TYPES.has(type)).toBe(true);
       expect(validateDriverFile(new File([new Uint8Array(MAX_DRIVER_FILE_BYTES)], "doc", { type }), "Photo")).toBeNull();

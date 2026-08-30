@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { isAdminUser } from "@/lib/auth/admin";
 import SignIn from "@/components/admin/SignIn";
 
 const AdminSessionContext = createContext(undefined);
@@ -11,7 +12,7 @@ const AdminSessionContext = createContext(undefined);
 const adminLinks = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/drivers", label: "Drivers" },
-  { href: "/admin/drivers/new", label: "Add driver" },
+  { href: "/admin/drivers/new", label: "Register driver" },
 ];
 
 export function useAdminSession() {
@@ -44,6 +45,20 @@ export default function AdminShell({ children }) {
   }
 
   if (!session) return <SignIn />;
+
+  if (!isAdminUser(session.user)) {
+    return (
+      <main className="console admin-loading">
+        <section className="empty-state" aria-labelledby="admin-access-heading">
+          <h1 id="admin-access-heading">Admin access required</h1>
+          <p>You&apos;re signed in, but this account does not have admin access.</p>
+          <button className="btn btn--ghost" type="button" onClick={() => supabase.auth.signOut()}>
+            Sign out
+          </button>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <AdminSessionContext.Provider value={session}>

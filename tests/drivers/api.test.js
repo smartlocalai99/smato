@@ -134,14 +134,14 @@ describe("driverApi", () => {
     ]);
   });
 
-  it("uploads to the private bucket using the file MIME type", async () => {
+  it("uploads private identity documents with no browser or CDN cache lifetime", async () => {
     const { client, calls } = createFakeClient();
     const file = new File(["image"], "photo.jpg", { type: "image/jpeg" });
 
     await expect(createDriverApi(client).upload("driver-1/photo.jpg", file)).resolves.toBe("driver-1/photo.jpg");
     expect(calls).toEqual([
       ["storage", "driver-documents"],
-      ["upload", "driver-documents", "driver-1/photo.jpg", file, { contentType: "image/jpeg", cacheControl: "3600" }],
+      ["upload", "driver-documents", "driver-1/photo.jpg", file, { contentType: "image/jpeg", cacheControl: "0" }],
     ]);
   });
 

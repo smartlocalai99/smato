@@ -127,4 +127,38 @@ describe("EditDriverPage", () => {
     expect(screen.getByDisplayValue("Ravi Kumar")).toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
   });
+
+  it("forwards edited values and one replacement while retaining both after a failed save", async () => {
+    const saveError = new Error("Storage unavailable");
+    const replacement = new File(["replacement"], "new-aadhaar.png", { type: "image/png" });
+    saveDriver.mockRejectedValue(saveError);
+    renderPage();
+
+    const nameInput = await screen.findByDisplayValue("Ravi Kumar");
+    fireEvent.change(nameInput, { target: { value: "Ravi Edited" } });
+    fireEvent.change(screen.getByLabelText("Aadhaar image"), {
+      target: { files: [replacement] },
+    });
+    expect(await screen.findByRole("img", { name: "Aadhaar image preview" }))
+      .toHaveAttribute("src", "blob:new-aadhaar.png");
+
+    submitChanges();
+
+    await waitFor(() => expect(saveDriver).toHaveBeenCalledWith({
+      current: driver,
+      values: {
+        name: "Ravi Edited",
+        mobile: "9876543210",
+        auto_number_plate: "TS09AB1234",
+        driving_licence_number: "TS0920230012345",
+        aadhaar_number: "123456789012",
+      },
+      replacements: { aadhaar: replacement },
+    }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Storage unavailable");
+    expect(screen.getByDisplayValue("Ravi Edited")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Aadhaar image preview" }))
+      .toHaveAttribute("src", "blob:new-aadhaar.png");
+    expect(push).not.toHaveBeenCalled();
+  });
 });
