@@ -18,7 +18,7 @@ const autoIcon = L.icon({
   iconSize: [46, 40],
   iconAnchor: [23, 20],
   popupAnchor: [0, -18],
-  className: "fleet-map__marker",
+  className: "drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)]",
 });
 
 function escapeHtml(value) {
@@ -39,10 +39,10 @@ function popupHtml(auto) {
     ? `playing "${escapeHtml(auto.now_playing_title)}"`
     : "idle";
   return `
-    <div class="fleet-map__popup">
+    <div class="text-[0.82rem] leading-relaxed">
       <strong>${escapeHtml(auto.auto_number)}</strong><br/>
       ${playing}<br/>
-      <span>last seen ${escapeHtml(seen)}</span>
+      <span class="text-text-dim">last seen ${escapeHtml(seen)}</span>
     </div>
   `;
 }
@@ -126,5 +126,5 @@ export default function FleetMap({ autos }) {
     }
   }, [autos]);
 
-  return <div ref={containerRef} className="fleet-map" />;
+  return <div ref={containerRef} className="fleet-map h-80 overflow-hidden rounded-lg border border-line" />;
 }

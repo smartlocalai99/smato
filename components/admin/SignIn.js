@@ -28,14 +28,21 @@ export default function SignIn() {
   }
 
   return (
-    <div className="signin">
-      <form className="signin__card" onSubmit={handleSubmit}>
+    <div className="signin min-h-screen-safe flex items-center justify-center bg-ink p-6">
+      <form
+        onSubmit={handleSubmit}
+        className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-line bg-panel p-8"
+      >
         <div>
-          <span className="landing__mark">smato · admin</span>
-          <h1 className="signin__title">Sign in</h1>
+          <span className="font-mono text-xs uppercase tracking-[0.3em] text-amber">
+            smato · admin
+          </span>
+          <h1 className="mt-1 font-display text-2xl font-semibold">Sign in</h1>
         </div>
-        <div className="field">
-          <label htmlFor="mobile">Mobile number</label>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="mobile" className="font-mono text-xs tracking-wide text-text-dim">
+            Mobile number
+          </label>
           <input
             id="mobile"
             type="tel"
@@ -45,10 +52,13 @@ export default function SignIn() {
             autoComplete="tel"
             value={mobile}
             onChange={(e) => setMobile(e.target.value)}
+            className="rounded-md border border-line bg-ink px-3 py-2.5 text-text focus:border-teal focus:outline-none"
           />
         </div>
-        <div className="field">
-          <label htmlFor="pin">PIN</label>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="pin" className="font-mono text-xs tracking-wide text-text-dim">
+            PIN
+          </label>
           <input
             id="pin"
             type="password"
@@ -58,10 +68,15 @@ export default function SignIn() {
             autoComplete="off"
             value={pin}
             onChange={(e) => setPin(e.target.value)}
+            className="rounded-md border border-line bg-ink px-3 py-2.5 text-text focus:border-teal focus:outline-none"
           />
         </div>
-        {error && <div className="signin__error">{error}</div>}
-        <button className="btn btn--primary" type="submit" disabled={loading}>
+        {error && <div className="text-sm text-red">{error}</div>}
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-md bg-amber px-4 py-2.5 font-semibold text-on-amber transition-colors hover:bg-[#ffc250] disabled:cursor-not-allowed disabled:opacity-50"
+        >
           {loading ? "Signing in…" : "Sign in"}
         </button>
       </form>

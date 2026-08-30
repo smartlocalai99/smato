@@ -18,6 +18,17 @@ const FleetMap = nextDynamic(() => import("@/components/FleetMap"), { ssr: false
 
 export const dynamic = "force-dynamic";
 
+const fieldClass =
+  "rounded-md border border-line bg-ink px-3 py-2.5 text-text focus:border-teal focus:outline-none";
+const labelClass = "font-mono text-xs tracking-wide text-text-dim";
+const cardClass = "rounded-lg border border-line bg-panel p-6";
+
+function statusClass(type) {
+  if (type === "error") return "text-red";
+  if (type === "ok") return "text-green";
+  return "text-text-dim";
+}
+
 export default function AdminPage() {
   return <Console />;
 }
@@ -65,39 +76,41 @@ function Console() {
   }, [loadAutos, loadAds]);
 
   return (
-    <div className="console__body">
-        <section>
-          <div className="section-head">
-            <h2>Fleet</h2>
-            <span className="section-head__hint">{autos.length} auto(s) checked in</span>
-          </div>
-          <FleetStrip autos={autos} />
-          <FleetMap autos={autos} />
-        </section>
+    <div className="flex flex-col gap-10 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+      <section>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-lg">Fleet</h2>
+          <span className="font-mono text-xs text-text-faint">
+            {autos.length} auto(s) checked in
+          </span>
+        </div>
+        <FleetStrip autos={autos} />
+        <FleetMap autos={autos} />
+      </section>
 
-        <section>
-          <div className="section-head">
-            <h2>Add an ad</h2>
-          </div>
-          <UploadForm autos={autos} onUploaded={loadAds} />
-        </section>
+      <section>
+        <div className="mb-4">
+          <h2 className="font-display text-lg">Add an ad</h2>
+        </div>
+        <UploadForm autos={autos} onUploaded={loadAds} />
+      </section>
 
-        <section>
-          <div className="section-head">
-            <h2>Scheduled ads</h2>
-            <span className="section-head__hint">{ads.length} total</span>
-          </div>
-          {loadError && <div className="signin__error">{loadError}</div>}
-          <AdsList ads={ads} onChange={loadAds} />
-        </section>
+      <section>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-lg">Scheduled ads</h2>
+          <span className="font-mono text-xs text-text-faint">{ads.length} total</span>
+        </div>
+        {loadError && <div className="mb-3 text-sm text-red">{loadError}</div>}
+        <AdsList ads={ads} onChange={loadAds} />
+      </section>
 
-        <section>
-          <div className="section-head">
-            <h2>Team access</h2>
-            <span className="section-head__hint">who can sign in to this console</span>
-          </div>
-          <TeamAccess />
-        </section>
+      <section>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-lg">Team access</h2>
+          <span className="font-mono text-xs text-text-faint">who can sign in to this console</span>
+        </div>
+        <TeamAccess />
+      </section>
     </div>
   );
 }
@@ -131,10 +144,12 @@ function TeamAccess() {
   }
 
   return (
-    <form className="upload-card" onSubmit={handleSubmit}>
-      <div className="upload-grid">
-        <div className="field">
-          <label htmlFor="teamMobile">Mobile number</label>
+    <form onSubmit={handleSubmit} className={cardClass}>
+      <div className="mb-5 grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-4">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="teamMobile" className={labelClass}>
+            Mobile number
+          </label>
           <input
             id="teamMobile"
             type="tel"
@@ -143,10 +158,13 @@ function TeamAccess() {
             required
             value={mobile}
             onChange={(e) => setMobile(e.target.value)}
+            className={fieldClass}
           />
         </div>
-        <div className="field">
-          <label htmlFor="teamPin">PIN</label>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="teamPin" className={labelClass}>
+            PIN
+          </label>
           <input
             id="teamPin"
             type="text"
@@ -155,21 +173,20 @@ function TeamAccess() {
             required
             value={pin}
             onChange={(e) => setPin(e.target.value)}
+            className={fieldClass}
           />
         </div>
       </div>
-      <div className="upload-actions">
-        <button className="btn btn--primary" type="submit" disabled={status?.type === "busy"}>
+      <div className="flex items-center gap-4">
+        <button
+          type="submit"
+          disabled={status?.type === "busy"}
+          className="rounded-md bg-amber px-4 py-2.5 font-semibold text-on-amber transition-colors hover:bg-[#ffc250] disabled:cursor-not-allowed disabled:opacity-50"
+        >
           {status?.type === "busy" ? "Adding…" : "Add login"}
         </button>
         {status && (
-          <span
-            className={`upload-status ${status.type === "error" ? "is-error" : ""} ${
-              status.type === "ok" ? "is-ok" : ""
-            }`}
-          >
-            {status.text}
-          </span>
+          <span className={`font-mono text-sm ${statusClass(status.type)}`}>{status.text}</span>
         )}
       </div>
     </form>
@@ -256,16 +273,31 @@ function UploadForm({ autos, onUploaded }) {
   }
 
   return (
-    <form className="upload-card" onSubmit={handleSubmit}>
-      <div className="upload-grid">
-        <div className="field">
-          <label htmlFor="title">Title</label>
-          <input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Diwali offer" />
+    <form onSubmit={handleSubmit} className={cardClass}>
+      <div className="mb-5 grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-4">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="title" className={labelClass}>
+            Title
+          </label>
+          <input
+            id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Diwali offer"
+            className={fieldClass}
+          />
         </div>
 
-        <div className="field">
-          <label htmlFor="auto">Plays on</label>
-          <select id="auto" value={autoChoice} onChange={(e) => setAutoChoice(e.target.value)}>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="auto" className={labelClass}>
+            Plays on
+          </label>
+          <select
+            id="auto"
+            value={autoChoice}
+            onChange={(e) => setAutoChoice(e.target.value)}
+            className={fieldClass}
+          >
             <option value="ALL">All autos</option>
             {autos.map((a) => (
               <option key={a.auto_number} value={a.auto_number}>
@@ -277,68 +309,91 @@ function UploadForm({ autos, onUploaded }) {
         </div>
 
         {autoChoice === "NEW" && (
-          <div className="field">
-            <label htmlFor="newAuto">New auto number</label>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="newAuto" className={labelClass}>
+              New auto number
+            </label>
             <input
               id="newAuto"
               value={newAutoNumber}
               onChange={(e) => setNewAutoNumber(e.target.value)}
               placeholder="AUTO-02"
+              className={fieldClass}
             />
           </div>
         )}
 
-        <div className="field">
-          <label htmlFor="sortOrder">Play order</label>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="sortOrder" className={labelClass}>
+            Play order
+          </label>
           <input
             id="sortOrder"
             type="number"
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
+            className={fieldClass}
           />
-          <span className="field__hint">Ads loop all day in this order — lowest plays first.</span>
+          <span className="text-xs text-text-faint">
+            Ads loop all day in this order — lowest plays first.
+          </span>
         </div>
 
-        <div className="field">
-          <label htmlFor="startDate">Start date (optional)</label>
-          <input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-        </div>
-        <div className="field">
-          <label htmlFor="endDate">End date (optional)</label>
-          <input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-        </div>
-      </div>
-
-      <div className="upload-grid upload-grid--wide">
-        <div className="field">
-          <label htmlFor="file">Video or image file</label>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="startDate" className={labelClass}>
+            Start date (optional)
+          </label>
           <input
-            id="file"
-            type="file"
-            accept="video/*,image/*"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            id="startDate"
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className={fieldClass}
           />
-          {file && (
-            <span className="upload-status">
-              {file.type.startsWith("image/") ? "Image" : "Video"} — shown for{" "}
-              {file.type.startsWith("image/") ? "8 seconds" : "its full length"} each time it plays.
-            </span>
-          )}
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="endDate" className={labelClass}>
+            End date (optional)
+          </label>
+          <input
+            id="endDate"
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className={fieldClass}
+          />
         </div>
       </div>
 
-      <div className="upload-actions">
-        <button className="btn btn--primary" type="submit" disabled={status?.type === "busy"}>
+      <div className="mb-5 flex flex-col gap-1.5">
+        <label htmlFor="file" className={labelClass}>
+          Video or image file
+        </label>
+        <input
+          id="file"
+          type="file"
+          accept="video/*,image/*"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          className={fieldClass}
+        />
+        {file && (
+          <span className="font-mono text-sm text-text-dim">
+            {file.type.startsWith("image/") ? "Image" : "Video"} — shown for{" "}
+            {file.type.startsWith("image/") ? "8 seconds" : "its full length"} each time it plays.
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-4">
+        <button
+          type="submit"
+          disabled={status?.type === "busy"}
+          className="rounded-md bg-amber px-4 py-2.5 font-semibold text-on-amber transition-colors hover:bg-[#ffc250] disabled:cursor-not-allowed disabled:opacity-50"
+        >
           {status?.type === "busy" ? "Uploading…" : "Upload & schedule"}
         </button>
         {status && (
-          <span
-            className={`upload-status ${status.type === "error" ? "is-error" : ""} ${
-              status.type === "ok" ? "is-ok" : ""
-            }`}
-          >
-            {status.text}
-          </span>
+          <span className={`font-mono text-sm ${statusClass(status.type)}`}>{status.text}</span>
         )}
       </div>
     </form>
@@ -367,22 +422,31 @@ function AdsList({ ads, onChange }) {
   }
 
   if (!ads.length) {
-    return <div className="empty-state">No ads yet. Upload one above.</div>;
+    return (
+      <div className="rounded-lg border border-dashed border-line p-6 text-center text-sm text-text-dim">
+        No ads yet. Upload one above.
+      </div>
+    );
   }
 
   return (
-    <div className="ads-list">
+    <div className="flex flex-col gap-2.5">
       {ads.map((ad) => (
-        <div key={ad.id} className={`ad-row ${ad.active ? "" : "is-inactive"}`}>
+        <div
+          key={ad.id}
+          className={`grid grid-cols-1 items-center gap-2 rounded-lg border border-line bg-panel p-4 sm:grid-cols-[1fr_auto] ${
+            ad.active ? "" : "opacity-50"
+          }`}
+        >
           <div>
-            <div className="ad-row__title">
+            <div className="font-semibold">
               <a href={adFileUrl(ad.file_path)} target="_blank" rel="noreferrer">
                 {ad.title}
               </a>
             </div>
-            <div className="ad-row__meta">
-              <span className="tag">{ad.auto_number || "all autos"}</span>
-              <span className="tag">{ad.media_type === "image" ? "image" : "video"}</span>
+            <div className="mt-1 flex flex-wrap gap-3 font-mono text-xs text-text-dim">
+              <span className="text-amber">{ad.auto_number || "all autos"}</span>
+              <span className="text-amber">{ad.media_type === "image" ? "image" : "video"}</span>
               <span>
                 {ad.start_date || "no start"} → {ad.end_date || "no end"}
               </span>
@@ -390,11 +454,19 @@ function AdsList({ ads, onChange }) {
               <span>{ad.active ? "active" : "paused"}</span>
             </div>
           </div>
-          <div className="ad-row__actions">
-            <button className="btn" disabled={busyId === ad.id} onClick={() => toggleActive(ad)}>
+          <div className="flex items-start gap-2">
+            <button
+              disabled={busyId === ad.id}
+              onClick={() => toggleActive(ad)}
+              className="rounded-md border border-line bg-panel-2 px-3 py-1.5 text-sm font-semibold text-text hover:border-text-faint disabled:cursor-not-allowed disabled:opacity-50"
+            >
               {ad.active ? "Pause" : "Resume"}
             </button>
-            <button className="btn btn--danger" disabled={busyId === ad.id} onClick={() => removeAd(ad)}>
+            <button
+              disabled={busyId === ad.id}
+              onClick={() => removeAd(ad)}
+              className="rounded-md border border-line bg-panel-2 px-3 py-1.5 text-sm font-semibold text-red hover:border-red disabled:cursor-not-allowed disabled:opacity-50"
+            >
               Delete
             </button>
           </div>

@@ -32,7 +32,7 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body className="bg-ink text-text font-body antialiased">{children}</body>
     </html>
   );
 }

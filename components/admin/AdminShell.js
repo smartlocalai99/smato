@@ -41,18 +41,36 @@ export default function AdminShell({ children }) {
   }, []);
 
   if (session === undefined) {
-    return <div className="admin-loading" role="status">Loading admin…</div>;
+    return (
+      <div
+        role="status"
+        className="console flex min-h-screen-safe items-center justify-center bg-ink text-text-dim"
+      >
+        Loading admin…
+      </div>
+    );
   }
 
   if (!session) return <SignIn />;
 
   if (!isAdminUser(session.user)) {
     return (
-      <main className="console admin-loading">
-        <section className="empty-state" aria-labelledby="admin-access-heading">
-          <h1 id="admin-access-heading">Admin access required</h1>
-          <p>You&apos;re signed in, but this account does not have admin access.</p>
-          <button className="btn btn--ghost" type="button" onClick={() => supabase.auth.signOut()}>
+      <main className="console flex min-h-screen-safe items-center justify-center bg-ink p-6">
+        <section
+          aria-labelledby="admin-access-heading"
+          className="max-w-sm rounded-lg border border-dashed border-line p-8 text-center text-text-dim"
+        >
+          <h1 id="admin-access-heading" className="font-display text-xl text-text">
+            Admin access required
+          </h1>
+          <p className="mt-2 text-sm">
+            You&apos;re signed in, but this account does not have admin access.
+          </p>
+          <button
+            type="button"
+            onClick={() => supabase.auth.signOut()}
+            className="mt-4 rounded-md border border-line bg-panel-2 px-4 py-2 text-sm font-semibold text-text hover:border-text-faint"
+          >
             Sign out
           </button>
         </section>
@@ -62,24 +80,35 @@ export default function AdminShell({ children }) {
 
   return (
     <AdminSessionContext.Provider value={session}>
-      <div className="console admin-shell">
-        <header className="console__bar admin-shell__header">
-          <div className="console__brand">
-            <span className="console__brand-dot" />
-            <span className="console__brand-title">smato / admin</span>
+      <div className="console min-h-screen-safe bg-ink lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)]">
+        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-line bg-ink/90 px-4 py-4 backdrop-blur-sm sm:px-6 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:h-dvh lg:flex-col lg:items-stretch lg:justify-start lg:border-b-0 lg:border-r lg:px-4 lg:py-5">
+          <div className="flex items-baseline gap-2.5">
+            <span className="inline-block h-2 w-2 rounded-full bg-amber shadow-[0_0_8px_var(--amber)]" />
+            <span className="font-display text-lg">smato / admin</span>
           </div>
-          <nav aria-label="Admin navigation" className="admin-shell__nav">
+          <nav
+            aria-label="Admin navigation"
+            className="flex min-w-0 items-center gap-1 overflow-x-auto lg:flex-col lg:items-stretch lg:overflow-visible"
+          >
             {adminLinks.map(({ href, label }) => (
-              <Link key={href} href={href} aria-current={pathname === href ? "page" : undefined}>
+              <Link
+                key={href}
+                href={href}
+                aria-current={pathname === href ? "page" : undefined}
+                className="flex-none whitespace-nowrap rounded-md px-2.5 py-2 font-mono text-xs tracking-wide text-text-dim no-underline hover:bg-panel-2 hover:text-text aria-[current=page]:bg-amber/[0.18] aria-[current=page]:text-on-amber aria-[current=page]:shadow-[inset_0_0_0_1px_rgba(255,176,32,0.44)]"
+              >
                 {label}
               </Link>
             ))}
           </nav>
-          <button className="btn btn--ghost" onClick={() => supabase.auth.signOut()}>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="rounded-md border border-line bg-transparent px-3 py-1.5 text-sm font-semibold text-text hover:border-text-faint lg:mt-auto lg:text-left"
+          >
             Sign out
           </button>
         </header>
-        {children}
+        <div className="min-w-0 lg:col-start-2">{children}</div>
       </div>
     </AdminSessionContext.Provider>
   );
