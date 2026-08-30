@@ -95,6 +95,7 @@ function Player({ autoNumber }) {
     gpsError: null,
     playError: null,
     cacheNames: [],
+    probe: null,
     now: new Date(),
   });
 
@@ -389,6 +390,21 @@ function Player({ autoNumber }) {
         ...h,
         playError: `video error: ${codeNames[code] || "unknown"} (code ${code ?? "?"})`,
       }));
+
+      // See exactly what our own endpoint hands back for this exact URL,
+      // instead of inferring it from the video element's behavior.
+      fetch(video.src, { headers: { Range: "bytes=0-1023" } })
+        .then((res) =>
+          res.arrayBuffer().then((buf) => ({
+            status: res.status,
+            contentType: res.headers.get("content-type"),
+            contentRange: res.headers.get("content-range"),
+            contentLength: res.headers.get("content-length"),
+            bytesReceived: buf.byteLength,
+          }))
+        )
+        .then((probe) => setHud((h) => ({ ...h, probe })))
+        .catch((err) => setHud((h) => ({ ...h, probe: { fetchFailed: err.message } })));
     };
     video.addEventListener("playing", onPlaying);
     video.addEventListener("canplay", onCanPlay);
@@ -517,6 +533,12 @@ function Hud({ autoNumber, hud, current, playlistLength, onClose }) {
         <span>cache versions</span>
         <span>{hud.cacheNames.length ? hud.cacheNames.join(", ") : "—"}</span>
       </div>
+      {hud.probe && (
+        <div className="hud__row hud__row--wrap">
+          <span>source probe</span>
+          <span>{JSON.stringify(hud.probe)}</span>
+        </div>
+      )}
     </div>
   );
 }
