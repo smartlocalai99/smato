@@ -30,6 +30,54 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// <video> loads its source in byte ranges (Range: bytes=...), not as one
+// request — that's how it seeks and starts playback before the whole file
+// is in. Cache.match() ignores that header and always hands back the full
+// cached response; some engines (this is what was actually breaking
+// playback) treat a full 200 answering a ranged request as unplayable and
+// give up with "no supported sources." Slice the cached body ourselves and
+// answer with a real 206 when a range was asked for.
+async function serveAd(request) {
+  const cache = await caches.open(AD_CACHE_NAME);
+  const cached = await cache.match(request.url);
+  if (!cached) return new Response("Not found", { status: 404 });
+
+  const contentType = cached.headers.get("Content-Type") || "application/octet-stream";
+  const rangeHeader = request.headers.get("range");
+  if (!rangeHeader) {
+    const blob = await cached.blob();
+    return new Response(blob, {
+      status: 200,
+      headers: {
+        "Content-Type": contentType,
+        "Content-Length": String(blob.size),
+        "Accept-Ranges": "bytes",
+      },
+    });
+  }
+
+  const blob = await cached.blob();
+  const size = blob.size;
+  const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
+  const start = match?.[1] ? parseInt(match[1], 10) : 0;
+  const end = Math.min(match?.[2] ? parseInt(match[2], 10) : size - 1, size - 1);
+
+  if (Number.isNaN(start) || start > end || start >= size) {
+    return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
+  }
+
+  const chunk = blob.slice(start, end + 1);
+  return new Response(chunk, {
+    status: 206,
+    headers: {
+      "Content-Type": contentType,
+      "Content-Range": `bytes ${start}-${end}/${size}`,
+      "Content-Length": String(chunk.size),
+      "Accept-Ranges": "bytes",
+    },
+  });
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
@@ -38,14 +86,12 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return; // never intercept Supabase requests
   if (url.pathname.startsWith("/admin")) return; // admin always needs a live network anyway
 
-  // Downloaded ads: pure cache read. The page writes these directly via
-  // the Cache Storage API when it downloads an ad — nothing to fetch or
-  // fall back to here, since a playlist never points at an ad it hasn't
-  // already downloaded.
+  // Downloaded ads: pure cache read, range-aware. The page writes these
+  // directly via the Cache Storage API when it downloads an ad — nothing
+  // to fetch or fall back to here, since a playlist never points at an ad
+  // it hasn't already downloaded.
   if (url.pathname.startsWith(AD_PATH_PREFIX)) {
-    event.respondWith(
-      caches.open(AD_CACHE_NAME).then((cache) => cache.match(request))
-    );
+    event.respondWith(serveAd(request));
     return;
   }
 
