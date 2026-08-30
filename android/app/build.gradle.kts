@@ -9,7 +9,10 @@ android {
 
     defaultConfig {
         applicationId = "com.smato.player"
-        minSdk = 24
+        // 21 (Lollipop) is the oldest Android with an updatable system
+        // WebView — anything older can't run a modern enough engine for
+        // service workers / Cache Storage regardless of what this app does.
+        minSdk = 21
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
