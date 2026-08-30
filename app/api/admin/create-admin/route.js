@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { isAdminUser } from "@/lib/auth/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,9 @@ export async function POST(request) {
   if (callerError || !callerData?.user) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
+  if (!isAdminUser(callerData.user)) {
+    return NextResponse.json({ error: "Admin access required." }, { status: 403 });
+  }
 
   const body = await request.json().catch(() => ({}));
   const digits = String(body.mobile || "").replace(/\D/g, "");
@@ -52,6 +56,7 @@ export async function POST(request) {
     email: `${digits}@smato.local`,
     password: pin,
     email_confirm: true,
+    app_metadata: { role: "admin" },
   });
 
   if (error) {

@@ -467,6 +467,115 @@ h3 {
   text-align: center;
 }
 
+/* ---------------------------------------------------------------------------
+   Admin navigation and driver records
+--------------------------------------------------------------------------- */
+.admin-shell__header { gap: 1rem; }
+.admin-shell__nav,
+.admin-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.admin-shell__nav a,
+.admin-nav__link {
+  flex: 0 0 auto;
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  padding: 0.45rem 0.55rem;
+  text-decoration: none;
+}
+.admin-shell__nav a:hover,
+.admin-nav__link:hover { background: var(--panel-2); color: var(--text); text-decoration: none; }
+.admin-shell__nav a[aria-current="page"],
+.admin-nav__link[aria-current="page"] {
+  background: rgba(255, 176, 32, 0.18);
+  color: var(--on-amber);
+  box-shadow: inset 0 0 0 1px rgba(255, 176, 32, 0.44);
+}
+
+.driver-page { width: min(100% - 3rem, 72rem); margin: 0 auto; padding: 2rem 0 4rem; }
+.driver-page__header { display: flex; align-items: flex-end; justify-content: space-between; gap: 1.25rem; margin-bottom: 1.5rem; }
+.driver-page__header h1 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -0.025em; }
+.driver-page__header p { color: var(--text-dim); line-height: 1.5; margin: 0.35rem 0 0; max-width: 38rem; }
+.driver-page__banner,
+.driver-form__status,
+.driver-page__state { border: 1px solid var(--line); border-radius: 7px; margin: 0 0 1.25rem; padding: 0.8rem 0.9rem; }
+.driver-page__banner { background: rgba(30, 158, 99, 0.09); border-color: rgba(30, 158, 99, 0.34); color: #176c45; }
+.driver-form__status,
+.driver-page__state[role="alert"] { background: rgba(199, 54, 44, 0.06); border-color: rgba(199, 54, 44, 0.34); color: #992c25; }
+.driver-page__state { background: var(--panel); color: var(--text-dim); }
+.driver-page__state p { margin: 0 0 0.85rem; }
+
+.driver-form { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); display: flex; flex-direction: column; gap: 1.5rem; padding: clamp(1rem, 3vw, 1.75rem); }
+.driver-form__fields { display: grid; gap: 1rem; }
+.driver-form__documents { border-top: 1px solid var(--line); padding-top: 1.5rem; }
+.driver-form__documents h2 { font-size: 1rem; margin-bottom: 1rem; }
+.driver-form__uploads { display: grid; gap: 1rem; }
+.field input[aria-invalid="true"],
+.document-upload input[aria-invalid="true"] { border-color: var(--red); }
+.field-error { color: var(--red); font-size: 0.78rem; line-height: 1.35; margin: 0; }
+.document-upload { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; padding: 0.9rem; }
+.document-upload > label { font-size: 0.8rem; font-weight: 600; }
+.document-upload__guidance,
+.document-upload__replace { color: var(--text-faint); font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.02em; margin: 0; }
+.document-upload__replace { color: var(--teal); }
+.document-upload input[type="file"] { max-width: 100%; font-size: 0.78rem; }
+.document-upload input[type="file"]::file-selector-button { background: var(--panel); border: 1px solid var(--line); border-radius: 5px; color: var(--text); cursor: pointer; font: inherit; margin-right: 0.6rem; padding: 0.4rem 0.55rem; }
+.document-upload__preview { aspect-ratio: 16 / 10; border: 1px solid var(--line); border-radius: 5px; object-fit: cover; width: 100%; }
+
+/* The status strip is the workflow's visual checkpoint: useful, not decorative. */
+.document-status,
+.driver-document-status { display: grid; gap: 0.5rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.document-status { border-top: 1px solid var(--line); padding-top: 1rem; }
+.document-status__item,
+.driver-document-status__item { background: #fff9e8; border: 1px solid rgba(255, 176, 32, 0.38); border-radius: 6px; color: #735319; font-family: var(--font-mono); font-size: 0.66rem; line-height: 1.35; min-width: 0; padding: 0.45rem 0.5rem; }
+.document-status__item { display: flex; flex-direction: column; gap: 0.1rem; box-shadow: inset 3px 0 0 var(--amber); }
+.document-status__item strong { color: var(--text); font-size: 0.7rem; }
+.driver-document-status__item { display: block; white-space: nowrap; }
+.driver-document-status__item.is-present { background: #edf8f3; border-color: rgba(30, 158, 99, 0.3); color: #176c45; box-shadow: inset 3px 0 0 var(--green); }
+
+.driver-directory__tools { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
+.driver-directory__search { color: var(--text-dim); display: grid; font-family: var(--font-mono); font-size: 0.7rem; gap: 0.35rem; letter-spacing: 0.03em; width: min(100%, 25rem); }
+.driver-directory__search input { background: var(--panel); border: 1px solid var(--line); border-radius: 7px; color: var(--text); padding: 0.65rem 0.75rem; width: 100%; }
+.driver-table-wrap { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.driver-table { border-collapse: collapse; font-size: 0.82rem; width: 100%; }
+.driver-table caption { background: var(--panel-2); border-bottom: 1px solid var(--line); caption-side: top; color: var(--text); font-family: var(--font-display); font-size: 1rem; font-weight: 600; padding: 0.9rem 1rem; text-align: left; }
+.driver-table th,
+.driver-table td { border-bottom: 1px solid var(--line); padding: 0.8rem; text-align: left; vertical-align: middle; }
+.driver-table thead th { background: var(--panel-2); color: var(--text-faint); font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
+.driver-table tbody tr:last-child th,
+.driver-table tbody tr:last-child td { border-bottom: 0; }
+.driver-table tbody tr:hover { background: #fbfbf8; }
+.driver-table__driver { align-items: center; display: flex; font-weight: 600; gap: 0.65rem; min-width: 10rem; }
+.driver-table__photo,
+.driver-table__photo-placeholder { background: var(--panel-2); border: 1px solid var(--line); border-radius: 50%; flex: 0 0 auto; height: 2rem; object-fit: cover; width: 2rem; }
+.driver-table__plate { font-family: var(--font-mono); font-size: 0.76rem; }
+.driver-table__action { text-align: right; white-space: nowrap; }
+
+@media (min-width: 761px) {
+  .driver-form__fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .driver-form__uploads { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (min-width: 901px) {
+  .admin-shell { display: grid; grid-template-columns: 13.5rem minmax(0, 1fr); }
+  .admin-shell__header { align-items: stretch; border-bottom: 0; border-right: 1px solid var(--line); flex-direction: column; grid-column: 1; grid-row: 1 / span 2; height: 100dvh; justify-content: flex-start; padding: 1.25rem 1rem; position: sticky; }
+  .admin-shell__nav,
+  .admin-nav { align-items: stretch; flex-direction: column; overflow: visible; }
+  .admin-shell__nav a,
+  .admin-nav__link { padding: 0.65rem 0.7rem; }
+  .admin-shell__header > .btn { margin-top: auto; text-align: left; }
+  .admin-shell > :not(.admin-shell__header) { grid-column: 2; min-width: 0; }
+  .driver-page { max-width: 72rem; }
+}
+
 /* Upload form */
 .upload-card {
   background: var(--panel);
@@ -663,6 +772,54 @@ h3 {
   .console__body {
     padding: 1.25rem 1rem 3rem;
   }
+  .console__bar {
+    align-items: center;
+    display: grid;
+    gap: 0.5rem 0.75rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding: 0.75rem 1rem;
+  }
+  .console__brand-title { font-size: 0.94rem; }
+  .admin-shell__nav,
+  .admin-nav { gap: 0.15rem; -webkit-overflow-scrolling: touch; }
+  .admin-shell__nav a,
+  .admin-nav__link { font-size: 0.66rem; padding: 0.4rem 0.45rem; }
+  .console__bar > .btn { font-size: 0.74rem; padding: 0.45rem 0.55rem; }
+  .driver-page { width: min(100% - 2rem, 72rem); padding: 1.25rem 0 3rem; }
+  .driver-page__header { align-items: flex-start; flex-direction: column; margin-bottom: 1.25rem; }
+  .driver-page__header .btn { width: 100%; }
+  .driver-form { gap: 1.25rem; }
+  .document-status,
+  .driver-document-status { gap: 0.35rem; }
+  .document-status__item,
+  .driver-document-status__item { font-size: 0.58rem; padding: 0.4rem; }
+  .driver-directory__tools { justify-content: stretch; }
+  .driver-directory__search { width: 100%; }
+  .driver-table-wrap { border: 0; border-radius: 0; overflow: visible; }
+  .driver-table,
+  .driver-table caption,
+  .driver-table tbody,
+  .driver-table tr,
+  .driver-table th,
+  .driver-table td { display: block; width: 100%; }
+  .driver-table thead { display: none; }
+  .driver-table caption { border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 0.7rem; }
+  .driver-table tbody { display: grid; gap: 0.7rem; }
+  .driver-table tbody tr,
+  .driver-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; padding: 0.2rem 0; }
+  .driver-table tbody tr:hover { background: var(--panel); }
+  .driver-table th,
+  .driver-table td { align-items: baseline; border-bottom: 1px solid var(--line); display: grid; gap: 0.75rem; grid-template-columns: minmax(7.5rem, 0.85fr) minmax(0, 1.15fr); padding: 0.6rem 0.75rem; }
+  .driver-table th::before,
+  .driver-table td::before { color: var(--text-faint); content: attr(data-label); font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.04em; text-transform: uppercase; }
+  .driver-table__driver { align-items: center !important; gap: 0.5rem; grid-template-columns: minmax(5.25rem, 0.85fr) 2rem minmax(0, 1.15fr) !important; min-width: 0; }
+  .driver-table__driver::before { align-self: center; }
+  .driver-table__driver > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+  .driver-table__action { display: flex !important; justify-content: flex-end; padding-top: 0.7rem !important; }
+  .driver-table__action::before { display: none; }
+  .driver-table__action .btn { width: 100%; }
+  .driver-document-status { grid-template-columns: 1fr; width: 100%; }
+  .driver-document-status__item { overflow-wrap: anywhere; white-space: normal; }
   .ad-row {
     grid-template-columns: 1fr;
   }

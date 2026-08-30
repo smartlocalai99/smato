@@ -1,9 +1,15 @@
 # Ad screens — Next.js app
 
-Two pages:
+Core pages:
 
 - `/admin` — sign in, upload ad videos, assign each one to an auto, watch the fleet on a live map with each tablet's status, address, and what's currently playing
 - `/player` — what runs on each tablet. Registers itself with an auto number, downloads its ads once, and plays them fully offline from then on.
+
+The authenticated admin area also includes driver management:
+
+- `/admin/drivers` — search registered drivers and open a record for editing
+- `/admin/drivers/new` — register a driver with their required documents
+- `/admin/drivers/[id]/edit` — update a driver's details or replace individual documents
 
 Plus a small Android app in [`android/`](android/) — a kiosk wrapper around
 `/player` (no watermark, screen always on, auto-launches after reboot). See
@@ -15,16 +21,34 @@ to download the built APK.
 ## 1. Supabase
 
 1. Create a project at [supabase.com](https://supabase.com). Free tier is fine.
-2. **SQL Editor** → paste all of `setup.sql` → Run. Creates the `autos` and `ads` tables, the `ads` storage bucket, the security rules, and seeds one test auto (`AUTO-01`).
-3. **Authentication → Users → Add user.** The admin sign-in screen asks for a mobile number + PIN, not an email — but Supabase Auth only stores email + password, so create your first login like this:
+2. **Existing installations only:** before rerunning the current `setup.sql`, grant the trusted admin role to every approved pre-existing admin or Team access account. Replace the example email with one account's exact email, run this block in **SQL Editor**, then repeat the same exact-email block separately for each other approved pre-existing account. The block aborts unless each run updates exactly one account; never remove the email filter, broaden it, or automatically promote every user.
+   ```sql
+   do $$
+   declare
+     promoted_count integer;
+   begin
+     update auth.users
+     set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
+       || jsonb_build_object('role', 'admin')
+     where lower(email) = lower('9876543210@smato.local');
+
+     get diagnostics promoted_count = row_count;
+     if promoted_count <> 1 then
+       raise exception 'Expected exactly one admin account, updated %', promoted_count;
+     end if;
+   end $$;
+   ```
+3. **SQL Editor** → paste all of `setup.sql` → Run. Creates the `autos`, `ads`, and `drivers` tables, the `ads` and private `driver-documents` storage buckets, the security rules, and seeds one test auto (`AUTO-01`).
+4. **Authentication → Users → Add user.** On a new installation, create the first login, then run the single-account SQL block from step 2 for that exact email. The admin sign-in screen asks for a mobile number + PIN, not an email — but Supabase Auth only stores email + password, so create the login like this:
    - **Email** → your mobile number followed by `@smato.local`, digits only. `9876543210` → `9876543210@smato.local`.
    - **Password** → your PIN. Supabase requires at least 6 characters by default, so use a 6-digit PIN.
    - **Tick "Auto Confirm User".** This is the step people miss — without it Supabase waits for a confirmation email, which a fake `@smato.local` address can never receive, so sign-in fails forever with "Invalid login credentials". If you already created a user without ticking it, fix it by running this once in the SQL Editor (swap in the real email):
      ```sql
      update auth.users set email_confirmed_at = now() where email = '9876543210@smato.local';
      ```
-   - You only need to do this dashboard dance once. After that first login works, add everyone else from inside `/admin` itself — **Team access** section, mobile + PIN, no Supabase dashboard needed (see step 4 for the extra key that section needs).
-4. **Project Settings → API.** Copy the **Project URL**, the **`anon public`** key (sometimes labeled `publishable`), and the **`service_role`** key (labeled `secret`). The service role key powers the in-app "Team access" panel — keep it out of anything public; it never goes in a `NEXT_PUBLIC_` variable.
+   - Sign out and sign back in after adding the role so the session receives a fresh JWT. You only need to do this dashboard dance once. After that first login works, add everyone else from inside `/admin` itself — **Team access** section, mobile + PIN, no Supabase dashboard needed (see step 6 for the extra key that section needs). Accounts created there receive the admin role automatically.
+5. In **Authentication settings**, turn off **Allow new users to sign up**. Admins created through the server-side Team access flow still work; disabling public signup is defense in depth against unapproved permanent accounts.
+6. **Project Settings → API.** Copy the **Project URL**, the **`anon public`** key (sometimes labeled `publishable`), and the **`service_role`** key (labeled `secret`). The service role key powers the in-app "Team access" panel — keep it out of anything public; it never goes in a `NEXT_PUBLIC_` variable.
 
 ## 2. Run it locally
 
@@ -49,7 +73,7 @@ npm run dev
 
 Open http://localhost:3000 — you should see the two links.
 
-The anon key is safe in the browser. The rules in `setup.sql` mean it can only read ads, check a device in, and post a GPS fix. Only your signed-in admin account can upload or delete ads. The service role key is different — it bypasses all of that, so it only ever lives in this env var, read server-side by `app/api/admin/create-admin`, never sent to the browser.
+The anon key is safe in the browser. The rules in `setup.sql` mean it can only read ads, check a device in, and post a GPS fix. Only a permanent signed-in account whose trusted `app_metadata.role` is `admin` can open the admin shell or manage protected data and storage. The service role key is different — it bypasses all of that, so it only ever lives in this env var, read server-side by `app/api/admin/create-admin`, never sent to the browser.
 
 ## 3. Deploy to Vercel
 
@@ -65,7 +89,13 @@ Or push to GitHub and import the repo at vercel.com.
 You'll get a URL like `https://your-app.vercel.app`.
 
 - Admin: `https://your-app.vercel.app/admin`
+- Drivers: `https://your-app.vercel.app/admin/drivers`
+- Register a driver: `https://your-app.vercel.app/admin/drivers/new`
 - Player (put this in the tablet's browser): `https://your-app.vercel.app/player`
+
+### Supabase upgrades
+
+Before the first upgrade to role-protected admin policies, run the exact-email, single-account migration in Supabase step 2 separately for every approved pre-existing admin or Team access account, changing the exact email for each run. Do not auto-promote all existing users. Then run the current `setup.sql` again in the connected project's SQL Editor. It is idempotent: it adds the driver table, private document bucket, and access policies without recreating existing fleet or advertisement data. Each promoted account must sign out and back in afterward to refresh its JWT role claim; until that account's migration and refresh are complete, it is intentionally denied admin access.
 
 ## 4. Set up a tablet
 
@@ -103,6 +133,14 @@ In `/admin`, under **Add an ad**:
 4. Choose a video **or image** file and upload — a photo plays for 8 seconds each time its turn comes up in the rotation, a video plays for its full length.
 
 The tablet picks it up within seconds if it's online — submitting, pausing, resuming, or deleting an ad broadcasts a message straight to every connected tablet, which triggers an immediate sync. No polling delay, and no Supabase dashboard setting to configure — it uses Realtime Broadcast, which works out of the box with the anon key (unlike the "Replication" toggle used for database change tracking, which this app doesn't rely on).
+
+## Managing drivers
+
+Open `/admin/drivers` after signing in to search the driver directory, or use `/admin/drivers/new` to register a record. Registration requires a name, mobile number, auto number plate, Driving Licence number, Aadhaar number, and three images: a driver photo, Driving Licence image, and Aadhaar image. Images must be JPEG, PNG, or WebP and under 5 MB.
+
+Each auto can have **one registered driver only**. Mobile numbers, Driving Licence numbers, and Aadhaar numbers are also unique, so the directory cannot accidentally create a duplicate identity or auto assignment.
+
+Driver documents are private. The app stores only private storage paths and creates short-lived signed URLs for authenticated admins when an image must be shown. The directory masks Aadhaar and Driving Licence values; full values and images appear only in the authenticated edit view. Keep real identifiers and signed storage URLs out of documentation, issue reports, and screenshots.
 
 ## How the offline part works
 
