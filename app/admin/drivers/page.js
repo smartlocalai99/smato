@@ -26,7 +26,12 @@ export default function DriversPage() {
     loadDirectory();
   }, [loadDirectory]);
 
-  const successMessage = searchParams.get("created") === "1"
+  const cleanupWarning = searchParams.get("updated") === "1" && searchParams.get("cleanup") === "1"
+    ? "Driver saved, but old document cleanup needs attention."
+    : "";
+  const successMessage = cleanupWarning
+    ? ""
+    : searchParams.get("created") === "1"
     ? "Driver registered."
     : searchParams.get("updated") === "1"
       ? "Driver updated."
@@ -42,6 +47,7 @@ export default function DriversPage() {
         <Link className="btn btn--primary" href="/admin/drivers/new">Register a driver</Link>
       </header>
 
+      {cleanupWarning && <p className="driver-page__banner" role="alert">{cleanupWarning}</p>}
       {successMessage && <p className="driver-page__banner" role="status">{successMessage}</p>}
 
       {directory.loading ? (

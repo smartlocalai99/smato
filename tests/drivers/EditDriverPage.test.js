@@ -128,6 +128,25 @@ describe("EditDriverPage", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it("navigates to a cleanup warning after the driver save committed", async () => {
+    const saved = { ...driver, name: "Ravi Saved" };
+    const cleanupError = Object.assign(
+      new Error("Driver changes were saved, but superseded document cleanup is incomplete."),
+      { code: "DRIVER_CLEANUP_INCOMPLETE", saved }
+    );
+    saveDriver.mockRejectedValue(cleanupError);
+    renderPage();
+
+    await screen.findByDisplayValue("Ravi Kumar");
+    submitChanges();
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith("/admin/drivers?updated=1&cleanup=1");
+    });
+    expect(screen.queryByText(cleanupError.message)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
+  });
+
   it("forwards edited values and one replacement while retaining both after a failed save", async () => {
     const saveError = new Error("Storage unavailable");
     const replacement = new File(["replacement"], "new-aadhaar.png", { type: "image/png" });

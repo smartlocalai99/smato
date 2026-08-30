@@ -374,7 +374,11 @@ describe("saveDriver", () => {
   it("surfaces superseded PII paths when deletion remains incomplete after retries", async () => {
     const cleanupError = new Error("Storage unavailable");
     const current = currentDriver();
-    const { api } = createApi();
+    const saved = currentDriver({
+      name: "Saved Ravi",
+      aadhaar_image_path: "driver-1/aadhaar-new.png",
+    });
+    const { api } = createApi({ saved });
     api.removeFiles.mockRejectedValue(cleanupError);
 
     const cleanupFailure = await saveDriver({
@@ -387,6 +391,7 @@ describe("saveDriver", () => {
       code: "DRIVER_CLEANUP_INCOMPLETE",
       driverId: "driver-1",
       paths: ["driver-1/aadhaar-old.png"],
+      saved,
       message: expect.stringMatching(/changes were saved.*cleanup is incomplete after 3 attempts/i),
     });
     expect(cleanupFailure.message).toContain("driver-1/aadhaar-old.png");

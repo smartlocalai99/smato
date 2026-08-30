@@ -21,7 +21,7 @@ to download the built APK.
 ## 1. Supabase
 
 1. Create a project at [supabase.com](https://supabase.com). Free tier is fine.
-2. **Existing installations only:** before rerunning the current `setup.sql`, grant the trusted admin role to the one existing first-admin account. Replace the example email with that account's exact email and run this once in **SQL Editor**. The block aborts if it does not update exactly one account; never remove the email filter or promote every user.
+2. **Existing installations only:** before rerunning the current `setup.sql`, grant the trusted admin role to every approved pre-existing admin or Team access account. Replace the example email with one account's exact email, run this block in **SQL Editor**, then repeat the same exact-email block separately for each other approved pre-existing account. The block aborts unless each run updates exactly one account; never remove the email filter, broaden it, or automatically promote every user.
    ```sql
    do $$
    declare
@@ -95,7 +95,7 @@ You'll get a URL like `https://your-app.vercel.app`.
 
 ### Supabase upgrades
 
-Before the first upgrade to role-protected admin policies, run the exact-email, single-account migration in Supabase step 2. Then run the current `setup.sql` again in the connected project's SQL Editor. It is idempotent: it adds the driver table, private document bucket, and access policies without recreating existing fleet or advertisement data. Sign out and back in afterward to refresh the JWT role claim; until the migration and refresh are complete, the existing account is intentionally denied admin access.
+Before the first upgrade to role-protected admin policies, run the exact-email, single-account migration in Supabase step 2 separately for every approved pre-existing admin or Team access account, changing the exact email for each run. Do not auto-promote all existing users. Then run the current `setup.sql` again in the connected project's SQL Editor. It is idempotent: it adds the driver table, private document bucket, and access policies without recreating existing fleet or advertisement data. Each promoted account must sign out and back in afterward to refresh its JWT role claim; until that account's migration and refresh are complete, it is intentionally denied admin access.
 
 ## 4. Set up a tablet
 

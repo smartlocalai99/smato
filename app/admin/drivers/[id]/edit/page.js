@@ -20,6 +20,7 @@ export default function EditDriverPage({ params }) {
   const [record, setRecord] = useState({ loading: true, driver: null, signedUrls: {}, error: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [saveCommitted, setSaveCommitted] = useState(false);
 
   const loadDriver = useCallback(async () => {
     setRecord({ loading: true, driver: null, signedUrls: {}, error: "" });
@@ -53,7 +54,12 @@ export default function EditDriverPage({ params }) {
       await saveDriver({ current: record.driver, values, replacements: files });
       router.push("/admin/drivers?updated=1");
     } catch (submissionError) {
-      setError(submissionError.message || "Couldn't save the driver.");
+      if (submissionError.code === "DRIVER_CLEANUP_INCOMPLETE" && submissionError.saved) {
+        setSaveCommitted(true);
+        router.push("/admin/drivers?updated=1&cleanup=1");
+      } else {
+        setError(submissionError.message || "Couldn't save the driver.");
+      }
     } finally {
       setBusy(false);
     }
@@ -82,6 +88,14 @@ export default function EditDriverPage({ params }) {
           <p>This driver may have been removed.</p>
           <Link href="/admin/drivers">Back to drivers</Link>
         </section>
+      </main>
+    );
+  }
+
+  if (saveCommitted) {
+    return (
+      <main className="driver-page">
+        <p className="driver-page__state" role="status">Driver saved. Returning to drivers…</p>
       </main>
     );
   }

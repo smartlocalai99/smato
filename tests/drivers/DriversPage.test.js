@@ -91,6 +91,17 @@ describe("DriversPage", () => {
     expect(await screen.findByText("No drivers have been registered yet.")).toBeInTheDocument();
   });
 
+  it("warns when a saved driver still needs old document cleanup", async () => {
+    searchParams.current = new URLSearchParams("updated=1&cleanup=1");
+    driverApi.list.mockResolvedValue([]);
+    render(<DriversPage />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Driver saved, but old document cleanup needs attention."
+    );
+    expect(await screen.findByText("No drivers have been registered yet.")).toBeInTheDocument();
+  });
+
   it("loads signed thumbnails only for driver photo paths", async () => {
     driverApi.list.mockResolvedValue(drivers);
     driverApi.sign.mockResolvedValue({
