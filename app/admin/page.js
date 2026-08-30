@@ -415,7 +415,9 @@ const STATUS_STYLES = {
 };
 
 function AdsOverview({ ads, loadError, onChange }) {
-  const running = ads.filter(isAdCurrentlyRunning);
+  // Array#filter passes (value, index, array); wrap the predicate so its
+  // optional `now` argument is never replaced with the numeric index.
+  const running = ads.filter((ad) => isAdCurrentlyRunning(ad));
   const history = ads
     .filter((ad) => !isAdCurrentlyRunning(ad))
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
