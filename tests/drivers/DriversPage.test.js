@@ -5,6 +5,7 @@ const { driverApi, searchParams } = vi.hoisted(() => ({
   driverApi: {
     list: vi.fn(),
     sign: vi.fn(),
+    listAutos: vi.fn(),
   },
   searchParams: { current: new URLSearchParams() },
 }));
@@ -45,6 +46,7 @@ const drivers = [
 beforeEach(() => {
   searchParams.current = new URLSearchParams();
   vi.clearAllMocks();
+  driverApi.listAutos.mockResolvedValue([]);
 });
 
 afterEach(cleanup);

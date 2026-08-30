@@ -39,8 +39,11 @@ function loadAdsSnapshot() {
 const SYNC_FALLBACK_INTERVAL_MS = 60 * 60 * 1000;
 const SW_UPDATE_CHECK_INTERVAL_MS = 3 * 60 * 1000;
 const TICK_INTERVAL_MS = 60 * 1000;
-const GPS_MIN_INTERVAL_MS = 30 * 1000;
-const HEARTBEAT_INTERVAL_MS = 60 * 1000;
+// Both throttle how often a tablet writes to the database, not how often it
+// reads its own GPS chip — kept well spaced out so ~20 tablets running all
+// day stay comfortably inside Supabase's free-tier bandwidth allowance.
+const GPS_MIN_INTERVAL_MS = 5 * 60 * 1000;
+const HEARTBEAT_INTERVAL_MS = 3 * 60 * 1000;
 const IMAGE_DURATION_MS = 2 * 60 * 1000;
 
 export const dynamic = "force-dynamic";

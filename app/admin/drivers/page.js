@@ -13,6 +13,7 @@ import { paymentStatus } from "@/lib/drivers/payment";
 export default function DriversPage() {
   const searchParams = useSearchParams();
   const [directory, setDirectory] = useState({ loading: true, drivers: [], photoUrls: {}, error: "" });
+  const [autos, setAutos] = useState([]);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [registerBusy, setRegisterBusy] = useState(false);
   const [registerError, setRegisterError] = useState("");
@@ -27,13 +28,15 @@ export default function DriversPage() {
       const photoPaths = drivers.map((driver) => driver.photo_path).filter(Boolean);
       const photoUrls = photoPaths.length ? await driverApi.sign(photoPaths) : {};
       setDirectory({ loading: false, drivers, photoUrls, error: "" });
-    } catch {
-      setDirectory({ loading: false, drivers: [], photoUrls: {}, error: "Couldn't load drivers." });
+    } catch (err) {
+      const detail = err?.message ? ` (${err.message})` : "";
+      setDirectory({ loading: false, drivers: [], photoUrls: {}, error: `Couldn't load drivers.${detail}` });
     }
   }, []);
 
   useEffect(() => {
     loadDirectory();
+    driverApi.listAutos().then(setAutos).catch(() => {});
   }, [loadDirectory]);
 
   function openRegister() {
@@ -155,6 +158,7 @@ export default function DriversPage() {
           onCancel={closeRegister}
           busy={registerBusy}
           status={registerError}
+          autos={autos}
           embedded
         />
       </Modal>

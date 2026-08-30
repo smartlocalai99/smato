@@ -1,14 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import DriverForm from "@/components/drivers/DriverForm";
+import { driverApi } from "@/lib/drivers/api";
 import { registerDriver } from "@/lib/drivers/mutations";
 
 export default function NewDriverPage() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [autos, setAutos] = useState([]);
+
+  useEffect(() => {
+    driverApi.listAutos().then(setAutos).catch(() => {});
+  }, []);
 
   async function handleRegister(payload) {
     setBusy(true);
@@ -36,6 +42,7 @@ export default function NewDriverPage() {
         onSubmit={handleRegister}
         busy={busy}
         status={error}
+        autos={autos}
       />
     </main>
   );

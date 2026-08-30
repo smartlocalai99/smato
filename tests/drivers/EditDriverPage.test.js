@@ -5,6 +5,7 @@ const { driverApi, push, saveDriver } = vi.hoisted(() => ({
   driverApi: {
     get: vi.fn(),
     sign: vi.fn(),
+    listAutos: vi.fn(),
   },
   push: vi.fn(),
   saveDriver: vi.fn(),
@@ -49,6 +50,7 @@ function submitChanges() {
 beforeEach(() => {
   driverApi.get.mockResolvedValue(driver);
   driverApi.sign.mockResolvedValue(signedUrls);
+  driverApi.listAutos.mockResolvedValue([]);
   vi.stubGlobal("URL", {
     createObjectURL: vi.fn((file) => `blob:${file.name}`),
     revokeObjectURL: vi.fn(),

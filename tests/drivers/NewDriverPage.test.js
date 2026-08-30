@@ -1,9 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { push, registerDriver } = vi.hoisted(() => ({
+const { push, registerDriver, driverApi } = vi.hoisted(() => ({
   push: vi.fn(),
   registerDriver: vi.fn(),
+  driverApi: { listAutos: vi.fn() },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -11,6 +12,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/lib/drivers/mutations", () => ({ registerDriver }));
+vi.mock("@/lib/drivers/api", () => ({ driverApi }));
 
 import NewDriverPage from "@/app/admin/drivers/new/page";
 
@@ -47,6 +49,7 @@ function submitRegistration() {
 }
 
 beforeEach(() => {
+  driverApi.listAutos.mockResolvedValue([]);
   vi.stubGlobal("URL", {
     createObjectURL: vi.fn((file) => `blob:${file.name}`),
     revokeObjectURL: vi.fn(),

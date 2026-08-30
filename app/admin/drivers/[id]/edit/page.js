@@ -18,6 +18,7 @@ function existingUrls(driver, signedUrls) {
 export default function EditDriverPage({ params }) {
   const router = useRouter();
   const [record, setRecord] = useState({ loading: true, driver: null, signedUrls: {}, error: "" });
+  const [autos, setAutos] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saveCommitted, setSaveCommitted] = useState(false);
@@ -38,13 +39,15 @@ export default function EditDriverPage({ params }) {
       ].filter(Boolean);
       const signedUrls = await driverApi.sign(paths);
       setRecord({ loading: false, driver, signedUrls, error: "" });
-    } catch {
-      setRecord({ loading: false, driver: null, signedUrls: {}, error: "Couldn't load this driver." });
+    } catch (err) {
+      const detail = err?.message ? ` (${err.message})` : "";
+      setRecord({ loading: false, driver: null, signedUrls: {}, error: `Couldn't load this driver.${detail}` });
     }
   }, [params.id]);
 
   useEffect(() => {
     loadDriver();
+    driverApi.listAutos().then(setAutos).catch(() => {});
   }, [loadDriver]);
 
   async function handleSave({ values, files }) {
@@ -132,6 +135,7 @@ export default function EditDriverPage({ params }) {
         onSubmit={handleSave}
         busy={busy}
         status={error}
+        autos={autos}
       />
     </main>
   );

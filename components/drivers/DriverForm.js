@@ -11,7 +11,7 @@ import {
 const FIELDS = [
   { key: "name", label: "Name", type: "text", autoComplete: "name" },
   { key: "mobile", label: "Mobile number", type: "tel", inputMode: "numeric", autoComplete: "tel" },
-  { key: "auto_number_plate", label: "Auto number plate", type: "text" },
+  { key: "auto_number_plate", label: "Auto number plate", type: "text", list: "known-autos" },
   { key: "driving_licence_number", label: "Driving Licence number", type: "text" },
   { key: "aadhaar_number", label: "Aadhaar number", type: "text", inputMode: "numeric" },
 ];
@@ -34,6 +34,10 @@ export default function DriverForm({
   onCancel,
   busy,
   status,
+  // Known tablets to attach this driver to — shown as pick-from suggestions
+  // on the auto number field so linking a driver to a tablet is explicit,
+  // not just something that happens to fall out of a matching plate number.
+  autos = [],
   // Inside a Modal, the modal itself is already the card — a nested card
   // here would just double up the border/shadow/padding around it.
   embedded = false,
@@ -98,6 +102,12 @@ export default function DriverForm({
         </p>
       )}
 
+      <datalist id="known-autos">
+        {autos.map((auto) => (
+          <option key={auto.auto_number} value={auto.auto_number} />
+        ))}
+      </datalist>
+
       <div className="grid gap-4 sm:grid-cols-2">
         {FIELDS.map((field) => {
           const id = fieldId(field.key);
@@ -113,15 +123,21 @@ export default function DriverForm({
                 type={field.type}
                 inputMode={field.inputMode}
                 autoComplete={field.autoComplete}
+                list={field.list}
                 required
                 value={values[field.key]}
                 aria-invalid={Boolean(error)}
-                aria-describedby={error ? errorId : undefined}
+                aria-describedby={error ? errorId : field.key === "auto_number_plate" ? `${id}-hint` : undefined}
                 onChange={(event) => updateValue(field.key, event.target.value)}
                 className={`rounded-xl border bg-ink px-3.5 py-2.5 text-text transition-colors focus:outline-none focus:ring-2 focus:ring-teal/20 ${
                   error ? "border-red" : "border-line focus:border-teal"
                 }`}
               />
+              {field.key === "auto_number_plate" && !error && (
+                <p className="text-xs text-text-faint" id={`${id}-hint`}>
+                  This is what links the driver to their tablet — pick a checked-in auto below, or type a new number.
+                </p>
+              )}
               {error && (
                 <p className="text-xs text-red" id={errorId} role="alert">
                   {error}
