@@ -31,8 +31,12 @@ export default function DriverForm({
   initialValues = {},
   existingUrls = {},
   onSubmit,
+  onCancel,
   busy,
   status,
+  // Inside a Modal, the modal itself is already the card — a nested card
+  // here would just double up the border/shadow/padding around it.
+  embedded = false,
 }) {
   const registration = mode === "register";
   const [values, setValues] = useState(() => ({
@@ -76,17 +80,34 @@ export default function DriverForm({
   }
 
   return (
-    <form className="driver-form" noValidate onSubmit={handleSubmit}>
-      {status && <p className="driver-form__status" role="alert">{status}</p>}
+    <form
+      className={
+        embedded
+          ? "flex flex-col gap-6"
+          : "flex flex-col gap-6 rounded-2xl border border-line bg-panel p-6 shadow-sm sm:p-8"
+      }
+      noValidate
+      onSubmit={handleSubmit}
+    >
+      {status && (
+        <p
+          className="rounded-xl border border-red/25 bg-red/[0.06] px-4 py-3 text-sm text-red"
+          role="alert"
+        >
+          {status}
+        </p>
+      )}
 
-      <div className="driver-form__fields">
+      <div className="grid gap-4 sm:grid-cols-2">
         {FIELDS.map((field) => {
           const id = fieldId(field.key);
           const error = errors[field.key];
           const errorId = `${id}-error`;
           return (
-            <div className="field" key={field.key}>
-              <label htmlFor={id}>{field.label}</label>
+            <div className="flex flex-col gap-1.5" key={field.key}>
+              <label htmlFor={id} className="font-mono text-xs tracking-wide text-text-dim">
+                {field.label}
+              </label>
               <input
                 id={id}
                 type={field.type}
@@ -97,16 +118,25 @@ export default function DriverForm({
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? errorId : undefined}
                 onChange={(event) => updateValue(field.key, event.target.value)}
+                className={`rounded-xl border bg-ink px-3.5 py-2.5 text-text transition-colors focus:outline-none focus:ring-2 focus:ring-teal/20 ${
+                  error ? "border-red" : "border-line focus:border-teal"
+                }`}
               />
-              {error && <p className="field-error" id={errorId} role="alert">{error}</p>}
+              {error && (
+                <p className="text-xs text-red" id={errorId} role="alert">
+                  {error}
+                </p>
+              )}
             </div>
           );
         })}
       </div>
 
-      <section className="driver-form__documents" aria-labelledby="driver-documents-heading">
-        <h2 id="driver-documents-heading">Documents</h2>
-        <div className="driver-form__uploads">
+      <section className="border-t border-line pt-6" aria-labelledby="driver-documents-heading">
+        <h2 id="driver-documents-heading" className="mb-4 font-display text-base font-semibold">
+          Documents
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-3">
           {DOCUMENTS.map((document) => (
             <DocumentUpload
               key={document.key}
@@ -122,21 +152,46 @@ export default function DriverForm({
         </div>
       </section>
 
-      <section className="document-status" aria-label="Document status">
+      <section className="grid gap-2 border-t border-line pt-5 sm:grid-cols-3" aria-label="Document status">
         {DOCUMENTS.map((document) => {
           const ready = Boolean(files[document.key] || existingUrls[document.key]);
           return (
-            <div className="document-status__item" key={document.key}>
-              <span>{document.label}</span>
-              <strong>{ready ? "Ready" : "Missing"}</strong>
+            <div
+              key={document.key}
+              className={`flex flex-col gap-0.5 rounded-xl border px-3 py-2 font-mono text-[0.68rem] leading-relaxed ${
+                ready
+                  ? "border-green/30 bg-green/[0.07] text-green"
+                  : "border-amber/30 bg-amber/[0.07] text-amber"
+              }`}
+            >
+              <span className="text-text-dim">{document.label}</span>
+              <strong className={ready ? "text-green" : "text-amber"}>
+                {ready ? "Ready" : "Missing"}
+              </strong>
             </div>
           );
         })}
       </section>
 
-      <button className="btn btn--primary" type="submit" disabled={busy}>
-        {busy ? "Saving…" : registration ? "Register driver" : "Save changes"}
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded-full bg-amber px-5 py-2.5 font-semibold text-on-amber transition-all hover:bg-[#ffc250] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {busy ? "Saving…" : registration ? "Register driver" : "Save changes"}
+        </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded-full border border-line px-5 py-2.5 font-semibold text-text transition-all hover:border-text-faint active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
     </form>
   );
 }

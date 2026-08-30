@@ -24,10 +24,10 @@ export default function NewDriverPage() {
   }
 
   return (
-    <main className="driver-page">
-      <header className="driver-page__header">
-        <h1>Register a driver</h1>
-        <p>Add their contact, vehicle, and required identity documents.</p>
+    <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 lg:px-10">
+      <header className="mb-6">
+        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Register a driver</h1>
+        <p className="mt-1 text-text-dim">Add their contact, vehicle, and required identity documents.</p>
       </header>
       <DriverForm
         mode="register"

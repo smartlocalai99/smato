@@ -65,16 +65,28 @@ export default function EditDriverPage({ params }) {
     }
   }
 
+  const shellClass = "mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 lg:px-10";
+
   if (record.loading) {
-    return <main className="driver-page"><p className="driver-page__state" role="status">Loading driver…</p></main>;
+    return (
+      <main className={shellClass}>
+        <p className="text-sm text-text-dim" role="status">Loading driver…</p>
+      </main>
+    );
   }
 
   if (record.error) {
     return (
-      <main className="driver-page">
-        <div className="driver-page__state" role="alert">
-          <p>{record.error}</p>
-          <button className="btn" type="button" onClick={loadDriver}>Try again</button>
+      <main className={shellClass}>
+        <div className="rounded-2xl border border-red/25 bg-red/[0.06] p-6 text-center" role="alert">
+          <p className="text-red">{record.error}</p>
+          <button
+            type="button"
+            onClick={loadDriver}
+            className="mt-3 rounded-full border border-line px-4 py-2 text-sm font-semibold hover:border-text-faint"
+          >
+            Try again
+          </button>
         </div>
       </main>
     );
@@ -82,11 +94,18 @@ export default function EditDriverPage({ params }) {
 
   if (!record.driver) {
     return (
-      <main className="driver-page">
-        <section className="empty-state" aria-labelledby="driver-not-found-heading">
-          <h1 id="driver-not-found-heading">Driver not found</h1>
-          <p>This driver may have been removed.</p>
-          <Link href="/admin/drivers">Back to drivers</Link>
+      <main className={shellClass}>
+        <section
+          aria-labelledby="driver-not-found-heading"
+          className="rounded-2xl border border-dashed border-line p-10 text-center"
+        >
+          <h1 id="driver-not-found-heading" className="font-display text-xl font-semibold">
+            Driver not found
+          </h1>
+          <p className="mt-1 text-text-dim">This driver may have been removed.</p>
+          <Link href="/admin/drivers" className="mt-3 inline-block font-semibold text-teal">
+            Back to drivers
+          </Link>
         </section>
       </main>
     );
@@ -94,17 +113,17 @@ export default function EditDriverPage({ params }) {
 
   if (saveCommitted) {
     return (
-      <main className="driver-page">
-        <p className="driver-page__state" role="status">Driver saved. Returning to drivers…</p>
+      <main className={shellClass}>
+        <p className="text-sm text-text-dim" role="status">Driver saved. Returning to drivers…</p>
       </main>
     );
   }
 
   return (
-    <main className="driver-page">
-      <header className="driver-page__header">
-        <h1>Edit driver</h1>
-        <p>Update contact, vehicle, and identity documents.</p>
+    <main className={shellClass}>
+      <header className="mb-6">
+        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Edit driver</h1>
+        <p className="mt-1 text-text-dim">Update contact, vehicle, and identity documents.</p>
       </header>
       <DriverForm
         mode="edit"

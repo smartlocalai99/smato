@@ -12,13 +12,15 @@ const DOCUMENTS = [
 
 function DocumentStatus({ driver }) {
   return (
-    <div className="driver-document-status" aria-label={`Document status for ${driver.name}`}>
+    <div className="flex flex-wrap gap-1.5" aria-label={`Document status for ${driver.name}`}>
       {DOCUMENTS.map((document) => {
         const present = Boolean(driver[document.key]);
         return (
           <span
-            className={`driver-document-status__item${present ? " is-present" : ""}`}
             key={document.key}
+            className={`whitespace-nowrap rounded-full px-2 py-0.5 font-mono text-[0.64rem] tracking-wide ${
+              present ? "bg-green/10 text-green" : "bg-amber/10 text-amber"
+            }`}
           >
             {document.label} {present ? "present" : "missing"}
           </span>
@@ -33,56 +35,74 @@ export default function DriverList({ drivers = [], photoUrls = {} }) {
   const matchingDrivers = filterDrivers(drivers, query);
 
   return (
-    <section className="driver-directory" aria-labelledby="driver-directory-heading">
-      <div className="driver-directory__tools">
-        <label className="driver-directory__search" htmlFor="driver-search">
-          <span>Search drivers</span>
+    <section aria-labelledby="driver-directory-heading">
+      <div className="mb-4 flex justify-end">
+        <label htmlFor="driver-search" className="w-full max-w-sm">
+          <span className="sr-only">Search drivers</span>
           <input
             id="driver-search"
             type="search"
             role="searchbox"
-            placeholder="Name, mobile, plate, or licence"
+            placeholder="Search name, mobile, plate, or licence"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            className="w-full rounded-full border border-line bg-panel px-4 py-2.5 text-sm text-text placeholder:text-text-faint focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20"
           />
         </label>
       </div>
 
       {matchingDrivers.length ? (
-        <div className="driver-table-wrap">
-          <table className="driver-table">
-            <caption id="driver-directory-heading">Registered drivers</caption>
+        <div className="overflow-x-auto rounded-2xl border border-line">
+          <table className="w-full min-w-[42rem] border-collapse text-sm">
+            <caption id="driver-directory-heading" className="sr-only">
+              Registered drivers
+            </caption>
             <thead>
-              <tr>
-                <th scope="col">Driver</th>
-                <th scope="col">Mobile</th>
-                <th scope="col">Auto</th>
-                <th scope="col">Driving Licence</th>
-                <th scope="col">Aadhaar</th>
-                <th scope="col">Documents</th>
-                <th scope="col" aria-label="Actions" />
+              <tr className="bg-panel-2 text-left font-mono text-[0.66rem] uppercase tracking-wide text-text-faint">
+                <th scope="col" className="px-4 py-3 font-medium">Driver</th>
+                <th scope="col" className="px-4 py-3 font-medium">Mobile</th>
+                <th scope="col" className="px-4 py-3 font-medium">Auto</th>
+                <th scope="col" className="px-4 py-3 font-medium">Driving Licence</th>
+                <th scope="col" className="px-4 py-3 font-medium">Aadhaar</th>
+                <th scope="col" className="px-4 py-3 font-medium">Documents</th>
+                <th scope="col" className="px-4 py-3" aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
               {matchingDrivers.map((driver) => {
                 const photoUrl = photoUrls[driver.photo_path];
                 return (
-                  <tr className="driver-card" key={driver.id}>
-                    <th className="driver-table__driver" scope="row" data-label="Driver">
-                      {photoUrl ? (
-                        <img className="driver-table__photo" src={photoUrl} alt={`Photo of ${driver.name}`} />
-                      ) : (
-                        <span className="driver-table__photo-placeholder" aria-hidden="true" />
-                      )}
-                      <span>{driver.name}</span>
+                  <tr key={driver.id} className="border-t border-line hover:bg-panel-2/60">
+                    <th scope="row" className="px-4 py-3 text-left font-semibold">
+                      <div className="flex items-center gap-2.5">
+                        {photoUrl ? (
+                          <img
+                            className="h-9 w-9 flex-none rounded-full border border-line object-cover"
+                            src={photoUrl}
+                            alt={`Photo of ${driver.name}`}
+                          />
+                        ) : (
+                          <span
+                            className="h-9 w-9 flex-none rounded-full border border-line bg-panel-2"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <span>{driver.name}</span>
+                      </div>
                     </th>
-                    <td data-label="Mobile">{driver.mobile}</td>
-                    <td className="driver-table__plate" data-label="Auto">{driver.auto_number_plate}</td>
-                    <td data-label="Driving Licence">{maskLicence(driver.driving_licence_number)}</td>
-                    <td data-label="Aadhaar">{maskAadhaar(driver.aadhaar_number)}</td>
-                    <td data-label="Documents"><DocumentStatus driver={driver} /></td>
-                    <td className="driver-table__action" data-label="">
-                      <Link className="btn btn--ghost" href={`/admin/drivers/${driver.id}/edit`} aria-label={`Edit ${driver.name}`}>
+                    <td className="px-4 py-3 text-text-dim">{driver.mobile}</td>
+                    <td className="px-4 py-3 font-mono text-[0.8rem]">{driver.auto_number_plate}</td>
+                    <td className="px-4 py-3 text-text-dim">{maskLicence(driver.driving_licence_number)}</td>
+                    <td className="px-4 py-3 text-text-dim">{maskAadhaar(driver.aadhaar_number)}</td>
+                    <td className="px-4 py-3">
+                      <DocumentStatus driver={driver} />
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        className="whitespace-nowrap rounded-full border border-line px-3.5 py-1.5 text-xs font-semibold transition-colors hover:border-text-faint"
+                        href={`/admin/drivers/${driver.id}/edit`}
+                        aria-label={`Edit ${driver.name}`}
+                      >
                         Edit
                       </Link>
                     </td>
@@ -93,7 +113,9 @@ export default function DriverList({ drivers = [], photoUrls = {} }) {
           </table>
         </div>
       ) : (
-        <p className="empty-state">No drivers match your search.</p>
+        <p className="rounded-2xl border border-dashed border-line p-6 text-center text-sm text-text-dim">
+          No drivers match your search.
+        </p>
       )}
     </section>
   );

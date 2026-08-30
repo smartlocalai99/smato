@@ -11,6 +11,7 @@ import {
 } from "@/lib/supabase";
 import FleetStrip from "@/components/FleetStrip";
 import { useAdminSession } from "@/components/admin/AdminShell";
+import { isAdCurrentlyRunning, todayStr } from "@/lib/time";
 
 // Leaflet touches window/document at load time, so it can only ever run in
 // the browser — never during Next's server render.
@@ -96,12 +97,7 @@ function Console() {
       </section>
 
       <section>
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-display text-lg">Scheduled ads</h2>
-          <span className="font-mono text-xs text-text-faint">{ads.length} total</span>
-        </div>
-        {loadError && <div className="mb-3 text-sm text-red">{loadError}</div>}
-        <AdsList ads={ads} onChange={loadAds} />
+        <AdsOverview ads={ads} loadError={loadError} onChange={loadAds} />
       </section>
 
       <section>
@@ -400,7 +396,59 @@ function UploadForm({ autos, onUploaded }) {
   );
 }
 
-function AdsList({ ads, onChange }) {
+// Why an ad isn't in the "Running now" list — distinct from just "not
+// running," since the fix is different for each (nothing to do, wait, or
+// extend the date).
+function adStatus(ad) {
+  if (!ad.active) return "paused";
+  const today = todayStr();
+  if (ad.start_date && today < ad.start_date) return "upcoming";
+  if (ad.end_date && today > ad.end_date) return "expired";
+  return "running";
+}
+
+const STATUS_STYLES = {
+  running: "bg-green/10 text-green",
+  upcoming: "bg-teal/10 text-teal",
+  expired: "bg-text-faint/15 text-text-faint",
+  paused: "bg-amber/10 text-amber",
+};
+
+function AdsOverview({ ads, loadError, onChange }) {
+  const running = ads.filter(isAdCurrentlyRunning);
+  const history = ads
+    .filter((ad) => !isAdCurrentlyRunning(ad))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  return (
+    <div className="flex flex-col gap-10">
+      <div>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-lg">Running now</h2>
+          <span className="font-mono text-xs text-text-faint">{running.length} live</span>
+        </div>
+        {loadError && <div className="mb-3 text-sm text-red">{loadError}</div>}
+        <AdsList
+          ads={running}
+          onChange={onChange}
+          emptyMessage="Nothing is playing right now. Upload an ad above to get started."
+        />
+      </div>
+
+      <div>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-lg">History</h2>
+          <span className="font-mono text-xs text-text-faint">
+            paused, upcoming, or finished · {history.length}
+          </span>
+        </div>
+        <AdsList ads={history} onChange={onChange} emptyMessage="Nothing here yet." />
+      </div>
+    </div>
+  );
+}
+
+function AdsList({ ads, onChange, emptyMessage }) {
   const [busyId, setBusyId] = useState(null);
 
   async function toggleActive(ad) {
@@ -424,54 +472,61 @@ function AdsList({ ads, onChange }) {
   if (!ads.length) {
     return (
       <div className="rounded-lg border border-dashed border-line p-6 text-center text-sm text-text-dim">
-        No ads yet. Upload one above.
+        {emptyMessage}
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-2.5">
-      {ads.map((ad) => (
-        <div
-          key={ad.id}
-          className={`grid grid-cols-1 items-center gap-2 rounded-lg border border-line bg-panel p-4 sm:grid-cols-[1fr_auto] ${
-            ad.active ? "" : "opacity-50"
-          }`}
-        >
-          <div>
-            <div className="font-semibold">
-              <a href={adFileUrl(ad.file_path)} target="_blank" rel="noreferrer">
-                {ad.title}
-              </a>
+      {ads.map((ad) => {
+        const status = adStatus(ad);
+        return (
+          <div
+            key={ad.id}
+            className="grid grid-cols-1 items-center gap-2 rounded-lg border border-line bg-panel p-4 sm:grid-cols-[1fr_auto]"
+          >
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold">
+                  <a href={adFileUrl(ad.file_path)} target="_blank" rel="noreferrer">
+                    {ad.title}
+                  </a>
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 font-mono text-[0.66rem] uppercase tracking-wide ${STATUS_STYLES[status]}`}
+                >
+                  {status}
+                </span>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-3 font-mono text-xs text-text-dim">
+                <span className="text-amber">{ad.auto_number || "all autos"}</span>
+                <span className="text-amber">{ad.media_type === "image" ? "image" : "video"}</span>
+                <span>
+                  {ad.start_date || "no start"} → {ad.end_date || "no end"}
+                </span>
+                <span>order {ad.sort_order}</span>
+              </div>
             </div>
-            <div className="mt-1 flex flex-wrap gap-3 font-mono text-xs text-text-dim">
-              <span className="text-amber">{ad.auto_number || "all autos"}</span>
-              <span className="text-amber">{ad.media_type === "image" ? "image" : "video"}</span>
-              <span>
-                {ad.start_date || "no start"} → {ad.end_date || "no end"}
-              </span>
-              <span>order {ad.sort_order}</span>
-              <span>{ad.active ? "active" : "paused"}</span>
+            <div className="flex items-start gap-2">
+              <button
+                disabled={busyId === ad.id}
+                onClick={() => toggleActive(ad)}
+                className="rounded-md border border-line bg-panel-2 px-3 py-1.5 text-sm font-semibold text-text hover:border-text-faint disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {ad.active ? "Pause" : "Resume"}
+              </button>
+              <button
+                disabled={busyId === ad.id}
+                onClick={() => removeAd(ad)}
+                className="rounded-md border border-line bg-panel-2 px-3 py-1.5 text-sm font-semibold text-red hover:border-red disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Delete
+              </button>
             </div>
           </div>
-          <div className="flex items-start gap-2">
-            <button
-              disabled={busyId === ad.id}
-              onClick={() => toggleActive(ad)}
-              className="rounded-md border border-line bg-panel-2 px-3 py-1.5 text-sm font-semibold text-text hover:border-text-faint disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {ad.active ? "Pause" : "Resume"}
-            </button>
-            <button
-              disabled={busyId === ad.id}
-              onClick={() => removeAd(ad)}
-              className="rounded-md border border-line bg-panel-2 px-3 py-1.5 text-sm font-semibold text-red hover:border-red disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

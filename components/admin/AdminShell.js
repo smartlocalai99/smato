@@ -9,10 +9,11 @@ import SignIn from "@/components/admin/SignIn";
 
 const AdminSessionContext = createContext(undefined);
 
+// Registering a driver opens as a modal from the Drivers page now, not a
+// separate route, so it no longer needs its own nav entry.
 const adminLinks = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/drivers", label: "Drivers" },
-  { href: "/admin/drivers/new", label: "Register driver" },
 ];
 
 export function useAdminSession() {

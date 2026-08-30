@@ -30,12 +30,16 @@ export default function DocumentUpload({
   const hintId = `${id}-hint`;
 
   return (
-    <div className="document-upload">
-      <label htmlFor={id}>{label}</label>
-      <p className="document-upload__guidance" id={hintId}>
+    <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-line bg-panel-2 p-3.5">
+      <label htmlFor={id} className="text-sm font-semibold text-text">
+        {label}
+      </label>
+      <p className="m-0 font-mono text-[0.68rem] tracking-wide text-text-faint" id={hintId}>
         JPEG, PNG or WebP · max 5 MB
       </p>
-      {existingUrl && !file && <span className="document-upload__replace">Replace image</span>}
+      {existingUrl && !file && (
+        <span className="font-mono text-[0.68rem] tracking-wide text-teal">Replace image</span>
+      )}
       <input
         id={id}
         type="file"
@@ -44,10 +48,17 @@ export default function DocumentUpload({
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${hintId} ${errorId}` : hintId}
         onChange={(event) => onChange(event.target.files?.[0] || null)}
+        className="max-w-full text-[0.78rem] file:mr-2.5 file:rounded-full file:border file:border-line file:bg-panel file:px-3 file:py-1.5 file:font-medium file:text-text"
       />
-      {imageUrl && <img className="document-upload__preview" src={imageUrl} alt={imageDescription} />}
+      {imageUrl && (
+        <img
+          className="aspect-[16/10] w-full rounded-lg border border-line object-cover"
+          src={imageUrl}
+          alt={imageDescription}
+        />
+      )}
       {error && (
-        <p className="field-error" id={errorId} role="alert">
+        <p className="text-xs text-red" id={errorId} role="alert">
           {error}
         </p>
       )}

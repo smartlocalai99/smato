@@ -66,8 +66,10 @@ describe("AdminShell", () => {
     const navigationElement = screen.getByRole("navigation", { name: "Admin navigation" });
     expect(within(navigationElement).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/admin");
     expect(within(navigationElement).getByRole("link", { name: "Drivers" })).toHaveAttribute("href", "/admin/drivers");
-    expect(within(navigationElement).getByRole("link", { name: "Register driver" })).toHaveAttribute("href", "/admin/drivers/new");
     expect(within(navigationElement).getByRole("link", { name: "Drivers" })).toHaveAttribute("aria-current", "page");
+    // Registering a driver is a modal on the Drivers page now, not its own
+    // route — no separate nav entry for it.
+    expect(within(navigationElement).queryByRole("link", { name: "Register driver" })).not.toBeInTheDocument();
   });
 
   it("signs out from the authenticated shell", async () => {
