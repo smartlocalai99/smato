@@ -106,7 +106,7 @@ The tablet picks it up within seconds if it's online — submitting, pausing, re
 
 ## How the offline part works
 
-- Videos are downloaded into the tablet's own storage (IndexedDB), never streamed.
+- Videos are downloaded into the tablet's own storage (the browser's Cache Storage, served back by the service worker on a normal same-origin URL — not a `blob:` URL, which is a known weak spot on some older Android WebView builds), never streamed.
 - On boot the player plays what it already has, instantly, with no internet.
 - It syncs the moment an ad changes (broadcast from `/admin`), plus a once-an-hour safety-net check in case that connection ever silently drops.
 - **Old ads are deleted only after the new ones have fully downloaded.** A dropped connection can never leave you with a blank screen.
@@ -137,7 +137,7 @@ app/
   globals.css        all styling
 lib/
   supabase.js        client + storage URL helper + realtime broadcast
-  idb.js             IndexedDB wrapper
+  adCache.js         downloaded ad storage (Cache Storage API, served by sw.js)
   time.js            date/campaign logic
   geocode.js          lat/lng → address (OpenStreetMap Nominatim)
 components/

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase, adFileUrl, ADS_CHANNEL_NAME } from "@/lib/supabase";
-import { getAllVideos, putVideo, deleteVideos } from "@/lib/idb";
+import { adCacheUrl, getDownloadedAdIds, putAd, deleteAds } from "@/lib/adCache";
 import { adsForAuto, isAdActiveNow } from "@/lib/time";
 
 const AUTO_KEY = "smato.autoNumber";
@@ -99,9 +99,6 @@ function Player({ autoNumber }) {
 
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef(null);
-  // adId -> object URL. Kept stable across rebuilds so a video that's mid-
-  // playback never has its src revoked out from under it — see rebuildPlaylist.
-  const objectUrlsRef = useRef(new Map());
 
   // --- tap-5x-corner to toggle the debug HUD ---------------------------------
   const handleCornerTap = useCallback(() => {
@@ -234,27 +231,18 @@ function Player({ autoNumber }) {
       if (error) throw error;
 
       const relevant = adsForAuto(ads || [], autoNumber);
-      const existing = await getAllVideos();
-      const existingIds = new Set(existing.map((v) => v.id));
+      const existingIds = new Set(await getDownloadedAdIds());
       const wantedIds = new Set(relevant.map((a) => a.id));
 
       for (const ad of relevant) {
         if (existingIds.has(ad.id)) continue;
         const res = await fetch(adFileUrl(ad.file_path));
         if (!res.ok) continue;
-        const blob = await res.blob();
-        await putVideo({
-          id: ad.id,
-          blob,
-          filePath: ad.file_path,
-          title: ad.title,
-          mediaType: ad.media_type || "video",
-          updatedAt: Date.now(),
-        });
+        await putAd(ad.id, res);
       }
 
-      const staleIds = existing.filter((v) => !wantedIds.has(v.id)).map((v) => v.id);
-      if (staleIds.length) await deleteVideos(staleIds);
+      const staleIds = [...existingIds].filter((id) => !wantedIds.has(id));
+      if (staleIds.length) await deleteAds(staleIds);
 
       setHud((h) => ({ ...h, lastSync: new Date(), syncError: null }));
       await rebuildPlaylist(relevant);
@@ -263,12 +251,15 @@ function Player({ autoNumber }) {
     }
   }, [autoNumber]);
 
-  // Rebuild the local playlist from whatever is actually on disk right now,
-  // filtered to ads that are time-active this minute.
+  // Rebuild the local playlist from whatever is actually downloaded right
+  // now, filtered to ads that are active. Each item's URL is just
+  // /__ad-cache__/<id> — a stable, ordinary-looking same-origin URL served
+  // by the service worker straight from Cache Storage, not a blob: URL, so
+  // there's no per-rebuild churn to worry about and no revoke-while-playing
+  // race to get wrong.
   const rebuildPlaylist = useCallback(
     async (adsHint) => {
-      const stored = await getAllVideos();
-      const storedById = new Map(stored.map((v) => [v.id, v]));
+      const downloadedIds = new Set(await getDownloadedAdIds());
 
       let scheduleAds = adsHint;
       if (!scheduleAds) {
@@ -282,41 +273,20 @@ function Player({ autoNumber }) {
 
       const now = new Date();
       const active = scheduleAds
-        .filter((ad) => storedById.has(ad.id))
+        .filter((ad) => downloadedIds.has(ad.id))
         .filter((ad) => isAdActiveNow(ad, autoNumber, now));
 
-      const activeIds = new Set(active.map((ad) => ad.id));
-
-      // Only revoke URLs for ads that have actually dropped out of rotation
-      // — reusing the rest means a playing video's src stays valid instead
-      // of silently going stale mid-playback (that "video icon, nothing
-      // plays" bug).
-      for (const [id, url] of objectUrlsRef.current) {
-        if (!activeIds.has(id)) {
-          URL.revokeObjectURL(url);
-          objectUrlsRef.current.delete(id);
-        }
-      }
-
-      const next = active.map((ad) => {
-        const rec = storedById.get(ad.id);
-        let url = objectUrlsRef.current.get(ad.id);
-        if (!url) {
-          url = URL.createObjectURL(rec.blob);
-          objectUrlsRef.current.set(ad.id, url);
-        }
-        return {
-          id: ad.id,
-          title: ad.title,
-          url,
-          sortOrder: ad.sort_order,
-          mediaType: rec.mediaType || ad.media_type || "video",
-        };
-      });
+      const next = active.map((ad) => ({
+        id: ad.id,
+        title: ad.title,
+        url: adCacheUrl(ad.id),
+        sortOrder: ad.sort_order,
+        mediaType: ad.media_type || "video",
+      }));
 
       setPlaylist(next);
       setPlayIndex((i) => (next.length ? i % next.length : 0));
-      setHud((h) => ({ ...h, downloadedCount: stored.length, now }));
+      setHud((h) => ({ ...h, downloadedCount: downloadedIds.size, now }));
     },
     [autoNumber]
   );
@@ -353,10 +323,6 @@ function Player({ autoNumber }) {
     const id = setInterval(() => rebuildPlaylist(), TICK_INTERVAL_MS);
     return () => clearInterval(id);
   }, [rebuildPlaylist]);
-
-  useEffect(() => {
-    return () => objectUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-  }, []);
 
   // --- playback ---------------------------------------------------------------
   const current = playlist.length ? playlist[playIndex % playlist.length] : null;
