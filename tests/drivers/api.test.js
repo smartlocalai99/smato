@@ -3,7 +3,7 @@ import { createDriverApi, documentPath } from "@/lib/drivers/api";
 
 const DRIVER_COLUMNS = [
   "id", "name", "mobile", "auto_number_plate", "driving_licence_number", "aadhaar_number",
-  "photo_path", "driving_licence_image_path", "aadhaar_image_path", "created_at", "updated_at",
+  "photo_path", "driving_licence_image_path", "aadhaar_image_path", "last_paid_at", "created_at", "updated_at",
 ].join(",");
 
 function createFakeClient({ tableResult = { data: null, error: null }, storageResult = { data: null, error: null } } = {}) {

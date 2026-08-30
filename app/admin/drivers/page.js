@@ -8,6 +8,7 @@ import DriverForm from "@/components/drivers/DriverForm";
 import Modal from "@/components/admin/Modal";
 import { driverApi } from "@/lib/drivers/api";
 import { registerDriver } from "@/lib/drivers/mutations";
+import { paymentStatus } from "@/lib/drivers/payment";
 
 export default function DriversPage() {
   const searchParams = useSearchParams();
@@ -87,6 +88,25 @@ export default function DriversPage() {
           Register a driver
         </button>
       </header>
+
+      {!directory.loading && !directory.error && (
+        <div className="mb-6 flex flex-wrap gap-3">
+          <div className="rounded-xl border border-line bg-panel px-4 py-2.5">
+            <span className="font-mono text-[0.66rem] uppercase tracking-wide text-text-faint">
+              Total drivers
+            </span>
+            <div className="font-display text-lg font-semibold">{directory.drivers.length}</div>
+          </div>
+          <div className="rounded-xl border border-line bg-panel px-4 py-2.5">
+            <span className="font-mono text-[0.66rem] uppercase tracking-wide text-text-faint">
+              Payment due
+            </span>
+            <div className="font-display text-lg font-semibold text-red">
+              {directory.drivers.filter((d) => d.created_at && paymentStatus(d).isDue).length}
+            </div>
+          </div>
+        </div>
+      )}
 
       {cleanupWarning && (
         <p className="mb-5 rounded-xl border border-red/25 bg-red/[0.06] px-4 py-3 text-sm text-red" role="alert">

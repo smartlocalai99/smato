@@ -149,6 +149,7 @@ create table if not exists drivers (
   photo_path text,
   driving_licence_image_path text,
   aadhaar_image_path text,
+  last_paid_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint drivers_documents_complete check (
@@ -157,6 +158,11 @@ create table if not exists drivers (
     (photo_path is not null and driving_licence_image_path is not null and aadhaar_image_path is not null)
   )
 );
+
+-- Safe to re-run on a project that already has `drivers` from before this
+-- column existed. Null last_paid_at just means "never paid yet" — the
+-- payment cycle then counts from created_at instead.
+alter table drivers add column if not exists last_paid_at timestamptz;
 
 create or replace function set_updated_at() returns trigger language plpgsql as $$
 begin new.updated_at = now(); return new; end;

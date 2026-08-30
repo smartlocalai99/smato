@@ -18,7 +18,14 @@ function adminSession() {
   };
 }
 
-vi.mock("@/lib/supabase", () => ({ supabase: { auth } }));
+// AdminShell fetches a driver count for the nav badge once signed in —
+// stub it to a resolved, empty result so that effect doesn't error out.
+vi.mock("@/lib/supabase", () => ({
+  supabase: {
+    auth,
+    from: vi.fn(() => ({ select: vi.fn(() => Promise.resolve({ count: 0 })) })),
+  },
+}));
 vi.mock("next/navigation", () => ({ usePathname: () => navigation.pathname }));
 
 function subscribe() {

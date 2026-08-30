@@ -13,7 +13,8 @@ const AdminSessionContext = createContext(undefined);
 // separate route, so it no longer needs its own nav entry.
 const adminLinks = [
   { href: "/admin", label: "Dashboard" },
-  { href: "/admin/drivers", label: "Drivers" },
+  { href: "/admin/drivers", label: "Drivers", countKey: "drivers" },
+  { href: "/admin/history", label: "History" },
 ];
 
 export function useAdminSession() {
@@ -22,6 +23,7 @@ export function useAdminSession() {
 
 export default function AdminShell({ children }) {
   const [session, setSession] = useState(undefined);
+  const [counts, setCounts] = useState({});
   const pathname = usePathname();
 
   useEffect(() => {
@@ -40,6 +42,24 @@ export default function AdminShell({ children }) {
       sub.subscription.unsubscribe();
     };
   }, []);
+
+  // A quick head-only count for the nav badge — not the full driver list,
+  // just "how many," so this stays cheap even as the fleet grows.
+  useEffect(() => {
+    if (!session) return;
+    let mounted = true;
+    supabase
+      .from("drivers")
+      .select("id", { count: "exact", head: true })
+      .then(({ count }) => {
+        if (mounted && typeof count === "number") {
+          setCounts((c) => ({ ...c, drivers: count }));
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [session]);
 
   if (session === undefined) {
     return (
@@ -91,7 +111,7 @@ export default function AdminShell({ children }) {
             aria-label="Admin navigation"
             className="flex min-w-0 items-center gap-1 overflow-x-auto lg:flex-col lg:items-stretch lg:overflow-visible"
           >
-            {adminLinks.map(({ href, label }) => (
+            {adminLinks.map(({ href, label, countKey }) => (
               <Link
                 key={href}
                 href={href}
@@ -99,6 +119,11 @@ export default function AdminShell({ children }) {
                 className="flex-none whitespace-nowrap rounded-md px-2.5 py-2 font-mono text-xs tracking-wide text-text-dim no-underline hover:bg-panel-2 hover:text-text aria-[current=page]:bg-amber/[0.18] aria-[current=page]:text-on-amber aria-[current=page]:shadow-[inset_0_0_0_1px_rgba(255,176,32,0.44)]"
               >
                 {label}
+                {countKey && counts[countKey] != null && (
+                  <span aria-hidden="true" className="ml-1.5 text-text-faint">
+                    {counts[countKey]}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>

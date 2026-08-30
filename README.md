@@ -7,9 +7,10 @@ Core pages:
 
 The authenticated admin area also includes driver management:
 
-- `/admin/drivers` — search registered drivers and open a record for editing
-- `/admin/drivers/new` — register a driver with their required documents
+- `/admin/drivers` — search registered drivers, see who's due for their monthly payment, and register a new one from a modal right here (no separate page)
+- `/admin/drivers/[id]` — a driver's profile: their linked tablet's live status, documents, and payment cycle with a "mark as paid" action
 - `/admin/drivers/[id]/edit` — update a driver's details or replace individual documents
+- `/admin/history` — ads that aren't live right now (paused, not started yet, or finished), kept off the main dashboard so it stays focused on what's actually running
 
 Plus a small Android app in [`android/`](android/) — a kiosk wrapper around
 `/player` (no watermark, screen always on, auto-launches after reboot). See
@@ -89,8 +90,8 @@ Or push to GitHub and import the repo at vercel.com.
 You'll get a URL like `https://your-app.vercel.app`.
 
 - Admin: `https://your-app.vercel.app/admin`
-- Drivers: `https://your-app.vercel.app/admin/drivers`
-- Register a driver: `https://your-app.vercel.app/admin/drivers/new`
+- Drivers: `https://your-app.vercel.app/admin/drivers` (Register a driver opens as a modal from here)
+- History: `https://your-app.vercel.app/admin/history`
 - Player (put this in the tablet's browser): `https://your-app.vercel.app/player`
 
 ### Supabase upgrades
@@ -136,11 +137,13 @@ The tablet picks it up within seconds if it's online — submitting, pausing, re
 
 ## Managing drivers
 
-Open `/admin/drivers` after signing in to search the driver directory, or use `/admin/drivers/new` to register a record. Registration requires a name, mobile number, auto number plate, Driving Licence number, Aadhaar number, and three images: a driver photo, Driving Licence image, and Aadhaar image. Images must be JPEG, PNG, or WebP and under 5 MB.
+Open `/admin/drivers` after signing in to search the driver directory, or click **Register a driver** to fill out the form in a modal right there — no separate page, the list refreshes the moment it closes. Registration requires a name, mobile number, auto number plate, Driving Licence number, Aadhaar number, and three images: a driver photo, Driving Licence image, and Aadhaar image. Images must be JPEG, PNG, or WebP and under 5 MB.
 
-Each auto can have **one registered driver only**. Mobile numbers, Driving Licence numbers, and Aadhaar numbers are also unique, so the directory cannot accidentally create a duplicate identity or auto assignment.
+Each auto can have **one registered driver only** — the auto number plate doubles as that auto's identifier in the fleet system, so a driver's profile page (`/admin/drivers/[id]`) shows their linked tablet's live status directly (online/offline, last seen, GPS). Mobile numbers, Driving Licence numbers, and Aadhaar numbers are also unique, so the directory cannot accidentally create a duplicate identity or auto assignment.
 
-Driver documents are private. The app stores only private storage paths and creates short-lived signed URLs for authenticated admins when an image must be shown. The directory masks Aadhaar and Driving Licence values; full values and images appear only in the authenticated edit view. Keep real identifiers and signed storage URLs out of documentation, issue reports, and screenshots.
+**Payment cycle** — every driver is paid ₹1,000 on a rolling 30-day cycle starting from their onboarding date (or their last payment, once they have one). A driver's profile shows whether they're due, and a **Mark this month as paid** button resets the clock. The Drivers list and their profile both show a due/paid badge; the Drivers page header totals how many drivers are currently due.
+
+Driver documents are private. The app stores only private storage paths and creates short-lived signed URLs for authenticated admins when an image must be shown. The directory masks Aadhaar and Driving Licence values; full values and images appear only in an authenticated driver's profile or edit view. Keep real identifiers and signed storage URLs out of documentation, issue reports, and screenshots.
 
 ## How the offline part works
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { filterDrivers, maskAadhaar, maskLicence } from "@/lib/drivers/validation";
+import { paymentStatus } from "@/lib/drivers/payment";
 
 const DOCUMENTS = [
   { key: "photo_path", label: "Photo" },
@@ -30,6 +31,20 @@ function DocumentStatus({ driver }) {
   );
 }
 
+function PaymentBadge({ driver }) {
+  if (!driver.created_at) return null;
+  const payment = paymentStatus(driver);
+  return (
+    <span
+      className={`whitespace-nowrap rounded-full px-2 py-0.5 font-mono text-[0.64rem] uppercase tracking-wide ${
+        payment.isDue ? "bg-red/10 text-red" : "bg-green/10 text-green"
+      }`}
+    >
+      {payment.isDue ? "payment due" : `paid · ${payment.daysRemaining}d left`}
+    </span>
+  );
+}
+
 export default function DriverList({ drivers = [], photoUrls = {} }) {
   const [query, setQuery] = useState("");
   const matchingDrivers = filterDrivers(drivers, query);
@@ -53,7 +68,7 @@ export default function DriverList({ drivers = [], photoUrls = {} }) {
 
       {matchingDrivers.length ? (
         <div className="overflow-x-auto rounded-2xl border border-line">
-          <table className="w-full min-w-[42rem] border-collapse text-sm">
+          <table className="w-full min-w-[46rem] border-collapse text-sm">
             <caption id="driver-directory-heading" className="sr-only">
               Registered drivers
             </caption>
@@ -65,6 +80,7 @@ export default function DriverList({ drivers = [], photoUrls = {} }) {
                 <th scope="col" className="px-4 py-3 font-medium">Driving Licence</th>
                 <th scope="col" className="px-4 py-3 font-medium">Aadhaar</th>
                 <th scope="col" className="px-4 py-3 font-medium">Documents</th>
+                <th scope="col" className="px-4 py-3 font-medium">Payment</th>
                 <th scope="col" className="px-4 py-3" aria-label="Actions" />
               </tr>
             </thead>
@@ -74,7 +90,10 @@ export default function DriverList({ drivers = [], photoUrls = {} }) {
                 return (
                   <tr key={driver.id} className="border-t border-line hover:bg-panel-2/60">
                     <th scope="row" className="px-4 py-3 text-left font-semibold">
-                      <div className="flex items-center gap-2.5">
+                      <Link
+                        href={`/admin/drivers/${driver.id}`}
+                        className="flex items-center gap-2.5 text-text"
+                      >
                         {photoUrl ? (
                           <img
                             className="h-9 w-9 flex-none rounded-full border border-line object-cover"
@@ -88,7 +107,7 @@ export default function DriverList({ drivers = [], photoUrls = {} }) {
                           />
                         )}
                         <span>{driver.name}</span>
-                      </div>
+                      </Link>
                     </th>
                     <td className="px-4 py-3 text-text-dim">{driver.mobile}</td>
                     <td className="px-4 py-3 font-mono text-[0.8rem]">{driver.auto_number_plate}</td>
@@ -96,6 +115,9 @@ export default function DriverList({ drivers = [], photoUrls = {} }) {
                     <td className="px-4 py-3 text-text-dim">{maskAadhaar(driver.aadhaar_number)}</td>
                     <td className="px-4 py-3">
                       <DocumentStatus driver={driver} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <PaymentBadge driver={driver} />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link
