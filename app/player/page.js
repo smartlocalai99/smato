@@ -12,7 +12,7 @@ const LABEL_KEY = "smato.autoLabel";
 // safety net in case the realtime connection silently drops — deliberately
 // rare so it stays "sync when something actually changed," not polling.
 const SYNC_FALLBACK_INTERVAL_MS = 60 * 60 * 1000;
-const SW_UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
+const SW_UPDATE_CHECK_INTERVAL_MS = 3 * 60 * 1000;
 const TICK_INTERVAL_MS = 60 * 1000;
 const GPS_MIN_INTERVAL_MS = 30 * 1000;
 const HEARTBEAT_INTERVAL_MS = 60 * 1000;
