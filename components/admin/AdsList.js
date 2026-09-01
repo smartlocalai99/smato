@@ -23,7 +23,7 @@ const STATUS_STYLES = {
   paused: "bg-amber/10 text-amber",
 };
 
-export default function AdsList({ ads, onChange, emptyMessage }) {
+export default function AdsList({ ads, onChange, emptyMessage, showOrder = true }) {
   const [busyId, setBusyId] = useState(null);
 
   async function toggleActive(ad) {
@@ -52,9 +52,20 @@ export default function AdsList({ ads, onChange, emptyMessage }) {
     );
   }
 
+  // An ad only competes for a rotation slot against ads targeting the same
+  // auto (or "All autos", which folds into every auto's own rotation) — not
+  // against every ad in the list, which can span several different tablets.
+  const groupCounts = new Map();
+  const positions = ads.map((ad) => {
+    const key = ad.auto_number || "ALL";
+    const position = (groupCounts.get(key) || 0) + 1;
+    groupCounts.set(key, position);
+    return position;
+  });
+
   return (
     <div className="flex flex-col gap-2.5">
-      {ads.map((ad) => {
+      {ads.map((ad, index) => {
         const status = adStatus(ad);
         return (
           <div
@@ -80,7 +91,9 @@ export default function AdsList({ ads, onChange, emptyMessage }) {
                 <span>
                   {ad.start_date || "no start"} → {ad.end_date || "no end"}
                 </span>
-                <span>order {ad.sort_order}</span>
+                {showOrder && (
+                  <span>plays {positions[index]} of {groupCounts.get(ad.auto_number || "ALL")} here</span>
+                )}
               </div>
             </div>
             <div className="flex items-start gap-2">

@@ -129,7 +129,7 @@ export default function DriverForm({
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? errorId : field.key === "auto_number_plate" ? `${id}-hint` : undefined}
                 onChange={(event) => updateValue(field.key, event.target.value)}
-                className={`rounded-xl border bg-ink px-3.5 py-2.5 text-text transition-colors focus:outline-none focus:ring-2 focus:ring-teal/20 ${
+                className={`rounded-xl border bg-ink px-3.5 py-2.5 text-text transition-colors focus:outline-none ${
                   error ? "border-red" : "border-line focus:border-teal"
                 }`}
               />

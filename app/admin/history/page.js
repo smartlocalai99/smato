@@ -42,7 +42,7 @@ export default function HistoryPage() {
       {loading ? (
         <p className="text-sm text-text-dim" role="status">Loading…</p>
       ) : (
-        <AdsList ads={history} onChange={loadAds} emptyMessage="Nothing here yet." />
+        <AdsList ads={history} onChange={loadAds} emptyMessage="Nothing here yet." showOrder={false} />
       )}
     </main>
   );

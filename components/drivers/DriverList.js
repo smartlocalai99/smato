@@ -61,7 +61,7 @@ export default function DriverList({ drivers = [], photoUrls = {} }) {
             placeholder="Search name, mobile, plate, or licence"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="w-full rounded-full border border-line bg-panel px-4 py-2.5 text-sm text-text placeholder:text-text-faint focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20"
+            className="w-full rounded-full border border-line bg-panel px-4 py-2.5 text-sm text-text placeholder:text-text-faint focus:border-teal focus:outline-none"
           />
         </label>
       </div>

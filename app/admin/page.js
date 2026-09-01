@@ -88,7 +88,7 @@ function Console() {
         <div className="mb-4">
           <h2 className="font-display text-lg">Add an ad</h2>
         </div>
-        <UploadForm autos={autos} onUploaded={loadAds} />
+        <UploadForm autos={autos} ads={ads} onUploaded={loadAds} />
       </section>
 
       <section>
@@ -195,15 +195,30 @@ function TeamAccess() {
   );
 }
 
-function UploadForm({ autos, onUploaded }) {
+// One past whatever's already queued, so a new ad lands at the back of the
+// rotation by default instead of everyone colliding at 0 and playing in
+// whatever order the database happens to hand rows back in.
+function nextSortOrder(ads) {
+  if (!ads.length) return 0;
+  return Math.max(...ads.map((ad) => ad.sort_order ?? 0)) + 1;
+}
+
+function UploadForm({ autos, ads, onUploaded }) {
   const [title, setTitle] = useState("");
   const [autoChoice, setAutoChoice] = useState("ALL");
   const [newAutoNumber, setNewAutoNumber] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [sortOrder, setSortOrder] = useState(0);
+  const [sortOrder, setSortOrder] = useState(() => nextSortOrder(ads));
+  const [sortOrderTouched, setSortOrderTouched] = useState(false);
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState(null); // { type: 'error'|'ok'|'busy', text }
+
+  // Keeps the suggested slot current as ads are added elsewhere — but only
+  // until the admin actually edits the field themselves.
+  useEffect(() => {
+    if (!sortOrderTouched) setSortOrder(nextSortOrder(ads));
+  }, [ads, sortOrderTouched]);
 
   function resetForm() {
     setTitle("");
@@ -211,7 +226,8 @@ function UploadForm({ autos, onUploaded }) {
     setNewAutoNumber("");
     setStartDate("");
     setEndDate("");
-    setSortOrder(0);
+    setSortOrder(nextSortOrder(ads));
+    setSortOrderTouched(false);
     setFile(null);
   }
 
@@ -333,11 +349,14 @@ function UploadForm({ autos, onUploaded }) {
             id="sortOrder"
             type="number"
             value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value)}
+            onChange={(e) => {
+              setSortOrderTouched(true);
+              setSortOrder(e.target.value);
+            }}
             className={fieldClass}
           />
           <span className="text-xs text-text-faint">
-            Ads loop all day in this order — lowest plays first.
+            Auto-filled to play last — ads loop all day in this order, lowest first. Only change it to reorder.
           </span>
         </div>
 
