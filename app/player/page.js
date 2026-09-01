@@ -390,7 +390,22 @@ function Player({ autoNumber }) {
   }, [autoNumber, current?.id]);
 
   function handleEnded() {
-    setPlayIndex((i) => (playlist.length ? (i + 1) % playlist.length : 0));
+    // A single-ad rotation would advance from index 0 back to index 0 —
+    // setPlayIndex sees an unchanged value, bails out of re-rendering, and
+    // the src-assignment effect below (keyed on `current`) never re-fires,
+    // so nothing ever calls play() again. Restart it directly instead of
+    // depending on a state change nobody would actually see, and stop
+    // depending on the video element's native `loop` attribute entirely —
+    // it isn't consistently honored across every WebView this runs in.
+    if (playlist.length <= 1) {
+      const video = videoRef.current;
+      if (video) {
+        video.currentTime = 0;
+        video.play().catch(() => {});
+      }
+      return;
+    }
+    setPlayIndex((i) => (i + 1) % playlist.length);
   }
 
   useEffect(() => {
@@ -484,11 +499,10 @@ function Player({ autoNumber }) {
             muted
             playsInline
             autoPlay
-            // A single-ad rotation never actually changes "current" between
-            // one play and the next (same array, same object, same id), so
-            // nothing tells React or the src-assignment effect to restart
-            // it. Native loop sidesteps that entirely for the one-ad case.
-            loop={playlist.length === 1}
+            // Looping is handled entirely in handleEnded (restarting the
+            // same video, or advancing to the next one) rather than the
+            // native `loop` attribute, which isn't consistently honored
+            // across every WebView this runs in.
             onEnded={handleEnded}
           />
         )
