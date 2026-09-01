@@ -209,16 +209,8 @@ function UploadForm({ autos, ads, onUploaded }) {
   const [newAutoNumber, setNewAutoNumber] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [sortOrder, setSortOrder] = useState(() => nextSortOrder(ads));
-  const [sortOrderTouched, setSortOrderTouched] = useState(false);
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState(null); // { type: 'error'|'ok'|'busy', text }
-
-  // Keeps the suggested slot current as ads are added elsewhere — but only
-  // until the admin actually edits the field themselves.
-  useEffect(() => {
-    if (!sortOrderTouched) setSortOrder(nextSortOrder(ads));
-  }, [ads, sortOrderTouched]);
 
   function resetForm() {
     setTitle("");
@@ -226,8 +218,6 @@ function UploadForm({ autos, ads, onUploaded }) {
     setNewAutoNumber("");
     setStartDate("");
     setEndDate("");
-    setSortOrder(nextSortOrder(ads));
-    setSortOrderTouched(false);
     setFile(null);
   }
 
@@ -277,7 +267,7 @@ function UploadForm({ autos, ads, onUploaded }) {
         auto_number: autoNumber,
         start_date: startDate || null,
         end_date: endDate || null,
-        sort_order: Number(sortOrder) || 0,
+        sort_order: nextSortOrder(ads),
       });
       if (insertError) throw insertError;
       notifyAdsChanged();
@@ -340,25 +330,6 @@ function UploadForm({ autos, ads, onUploaded }) {
             />
           </div>
         )}
-
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="sortOrder" className={labelClass}>
-            Play order
-          </label>
-          <input
-            id="sortOrder"
-            type="number"
-            value={sortOrder}
-            onChange={(e) => {
-              setSortOrderTouched(true);
-              setSortOrder(e.target.value);
-            }}
-            className={fieldClass}
-          />
-          <span className="text-xs text-text-faint">
-            Auto-filled to play last — ads loop all day in this order, lowest first. Only change it to reorder.
-          </span>
-        </div>
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="startDate" className={labelClass}>

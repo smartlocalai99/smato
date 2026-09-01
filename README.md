@@ -129,9 +129,10 @@ Before the first upgrade to role-protected admin policies, run the exact-email, 
 In `/admin`, under **Add an ad**:
 
 1. **Plays on** — pick a specific auto (e.g. `AUTO-01`), or **All autos**. Pick **+ New auto…** to type a number that hasn't checked in yet — it'll be assigned to that video and appear in the Fleet list right away.
-2. **Play order** — ads loop all day, back to back, in this order (lowest first). There's no time-of-day scheduling — if it's active, it's in the rotation.
-3. Optional start/end date to run it only for a campaign window.
-4. Choose a video **or image** file and upload — a photo plays for 2 minutes each time its turn comes up in the rotation, a video plays for its full length.
+2. Optional start/end date to run it only for a campaign window.
+3. Choose a video **or image** file and upload — a photo plays for 2 minutes each time its turn comes up in the rotation, a video plays for its full length.
+
+Ads loop all day, back to back, in the order they were added — there's no manual play-order field to set; each new ad just joins the back of the queue. There's no time-of-day scheduling either — if it's active, it's in the rotation. The ads list shows each one's position (e.g. "plays 2 of 3 here") so it's clear what order a given tablet is actually playing in.
 
 The tablet picks it up within seconds if it's online — submitting, pausing, resuming, or deleting an ad broadcasts a message straight to every connected tablet, which triggers an immediate sync. No polling delay, and no Supabase dashboard setting to configure — it uses Realtime Broadcast, which works out of the box with the anon key (unlike the "Replication" toggle used for database change tracking, which this app doesn't rely on).
 
