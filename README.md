@@ -108,7 +108,7 @@ Before the first upgrade to role-protected admin policies, run the exact-email, 
    - Start on Boot → on
    - Kiosk Mode → on
    - Keep Screen On → on
-   - Advanced Web Settings → Service Workers **on**, DOM Storage **on**
+   - Advanced Web Settings → Service Workers **on**, DOM Storage **on**, JavaScript Interface **on** (lets the player read the tablet's real battery level for the Fleet view)
    - Location permission → granted (Fully Kiosk → Web Settings → Enable Geolocation API)
 5. Reboot the tablet. It should land on the player by itself.
 
