@@ -1,6 +1,6 @@
 "use client";
 
-import { STATUS_STYLES, autoStatus, timeAgo, useAutoAddress } from "@/lib/autoStatus";
+import { STATUS_STYLES, autoStatus, batteryLabel, batteryStyle, timeAgo, useAutoAddress } from "@/lib/autoStatus";
 
 // Live status card per auto: online/idle/offline from the heartbeat, what
 // it's currently playing, and its last GPS fix as a readable address.
@@ -37,7 +37,13 @@ function FleetCard({ auto }) {
         <span className={`h-2 w-2 flex-none rounded-full ${styles.dot}`} />
         <span className="font-mono text-[0.95rem] font-medium">{auto.auto_number}</span>
         <span
-          className={`ml-auto rounded bg-panel-2 px-2 py-0.5 font-mono text-[0.7rem] uppercase tracking-wide ${styles.text}`}
+          className={`ml-auto font-mono text-[0.7rem] tracking-wide ${batteryStyle(auto.battery_level, auto.battery_charging)}`}
+          title={batteryLabel(auto.battery_level, auto.battery_charging)}
+        >
+          {auto.battery_level != null ? `${auto.battery_level}%` : ""}
+        </span>
+        <span
+          className={`rounded bg-panel-2 px-2 py-0.5 font-mono text-[0.7rem] uppercase tracking-wide ${styles.text}`}
         >
           {s}
         </span>

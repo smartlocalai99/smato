@@ -6,7 +6,7 @@ import { driverApi } from "@/lib/drivers/api";
 import { maskAadhaar, maskLicence } from "@/lib/drivers/validation";
 import { PAYMENT_AMOUNT, paymentStatus } from "@/lib/drivers/payment";
 import { supabase } from "@/lib/supabase";
-import { STATUS_STYLES, autoStatus, timeAgo, useAutoAddress } from "@/lib/autoStatus";
+import { STATUS_STYLES, autoStatus, batteryLabel, batteryStyle, timeAgo, useAutoAddress } from "@/lib/autoStatus";
 
 function DocumentTile({ label, url }) {
   return (
@@ -65,6 +65,9 @@ function LinkedAuto({ autoNumber }) {
         <span className={`h-2 w-2 flex-none rounded-full ${styles.dot}`} />
         <span className={`font-mono text-xs uppercase tracking-wide ${styles.text}`}>{s}</span>
         <span className="text-text-dim">· last seen {timeAgo(auto.last_seen_at)}</span>
+        <span className={`font-mono text-xs ${batteryStyle(auto.battery_level, auto.battery_charging)}`}>
+          · {batteryLabel(auto.battery_level, auto.battery_charging)}
+        </span>
       </div>
       <div className="text-text-dim">
         Now playing: <span className="text-text">{auto.now_playing_title || "idle"}</span>

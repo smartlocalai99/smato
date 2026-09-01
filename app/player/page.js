@@ -32,6 +32,31 @@ function loadAdsSnapshot() {
     return [];
   }
 }
+
+// Fully Kiosk Browser (what every tablet actually runs) injects a `fully`
+// JS interface with reliable, synchronous battery info once "Enable
+// JavaScript Interface" is on in its Advanced Web Settings — try that
+// first. The standard Battery Status API is the fallback for a plain
+// browser during local testing, or a tablet where that setting isn't
+// flipped yet. Neither one polls hardware; both just read a value the OS
+// already tracks for its own power management.
+async function readBattery() {
+  try {
+    if (window.fully?.getBatteryLevel) {
+      return {
+        level: Math.round(window.fully.getBatteryLevel()),
+        charging: Boolean(window.fully.isPlugged?.()),
+      };
+    }
+    if (navigator.getBattery) {
+      const battery = await navigator.getBattery();
+      return { level: Math.round(battery.level * 100), charging: battery.charging };
+    }
+  } catch {
+    // Unsupported or blocked — reported as unknown below.
+  }
+  return { level: null, charging: null };
+}
 // Ads sync is event-driven (Supabase Realtime fires the moment an ad is
 // added/edited/deleted), not on a timer. This interval only exists as a
 // safety net in case the realtime connection silently drops — deliberately
@@ -199,10 +224,16 @@ function Player({ autoNumber }) {
     let cancelled = false;
     async function beat() {
       if (!navigator.onLine) return;
+      const battery = await readBattery();
       await supabase
         .from("autos")
         .upsert(
-          { auto_number: autoNumber, last_seen_at: new Date().toISOString() },
+          {
+            auto_number: autoNumber,
+            last_seen_at: new Date().toISOString(),
+            battery_level: battery.level,
+            battery_charging: battery.charging,
+          },
           { onConflict: "auto_number" }
         );
     }

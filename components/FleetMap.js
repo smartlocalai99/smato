@@ -38,9 +38,13 @@ function popupHtml(auto) {
   const playing = auto.now_playing_title
     ? `playing "${escapeHtml(auto.now_playing_title)}"`
     : "idle";
+  const battery =
+    auto.battery_level != null
+      ? `${auto.battery_level}%${auto.battery_charging ? " (charging)" : ""}`
+      : null;
   return `
     <div class="text-[0.82rem] leading-relaxed">
-      <strong>${escapeHtml(auto.auto_number)}</strong><br/>
+      <strong>${escapeHtml(auto.auto_number)}</strong>${battery ? ` · ${escapeHtml(battery)}` : ""}<br/>
       ${playing}<br/>
       <span class="text-text-dim">last seen ${escapeHtml(seen)}</span>
     </div>

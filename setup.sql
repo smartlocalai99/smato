@@ -19,13 +19,20 @@ create table if not exists autos (
   last_gps_at timestamptz,
   last_gps_accuracy double precision,
   now_playing_title text,
+  battery_level smallint check (battery_level between 0 and 100),
+  battery_charging boolean,
   app_version text,
   created_at timestamptz not null default now()
 );
 
--- Safe to re-run on a project that already has `autos` from before this
--- column existed.
+-- Safe to re-run on a project that already has `autos` from before these
+-- columns existed. Null battery fields just mean "not reported yet" — an
+-- older player build, or a tablet whose browser doesn't expose battery info.
 alter table autos add column if not exists now_playing_title text;
+alter table autos add column if not exists battery_level smallint;
+alter table autos drop constraint if exists autos_battery_level_check;
+alter table autos add constraint autos_battery_level_check check (battery_level between 0 and 100);
+alter table autos add column if not exists battery_charging boolean;
 
 -- ---------------------------------------------------------------------------
 -- ads: one row per uploaded video/image. auto_number = null means "play on
