@@ -97,6 +97,44 @@ create policy "autos_delete_admin" on autos for delete
   using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
     and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
+-- ---------------------------------------------------------------------------
+-- auto_locations: one row per GPS fix, kept forever (unlike autos.last_lat/
+-- last_lng, which only ever hold the latest point) — this is what an
+-- end-of-day route report reads back for "everywhere this auto went today".
+-- ---------------------------------------------------------------------------
+create table if not exists auto_locations (
+  id uuid primary key default gen_random_uuid(),
+  auto_number text not null references autos(auto_number) on delete cascade,
+  lat double precision not null,
+  lng double precision not null,
+  accuracy double precision,
+  recorded_at timestamptz not null default now()
+);
+
+create index if not exists auto_locations_auto_recorded_idx
+  on auto_locations (auto_number, recorded_at);
+
+alter table auto_locations enable row level security;
+
+-- The player writes its own fixes with the anon key, same as the live
+-- check-in fields on autos above.
+drop policy if exists "auto_locations_insert_checkin" on auto_locations;
+create policy "auto_locations_insert_checkin" on auto_locations for insert with check (true);
+
+-- Route history is more sensitive than a single live position — it's the
+-- product being shown to clients, so only a signed-in admin can read it back.
+drop policy if exists "auto_locations_select_admin" on auto_locations;
+create policy "auto_locations_select_admin" on auto_locations for select
+  to authenticated
+  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+drop policy if exists "auto_locations_delete_admin" on auto_locations;
+create policy "auto_locations_delete_admin" on auto_locations for delete
+  to authenticated
+  using ((select auth.jwt() ->> 'is_anonymous') is distinct from 'true'
+    and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
 -- Ads: public read (only active ones, everything else is admin-only).
 drop policy if exists "ads_select_all" on ads;
 create policy "ads_select_all" on ads for select using (true);

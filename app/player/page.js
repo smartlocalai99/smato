@@ -280,6 +280,21 @@ function Player({ autoNumber }) {
             { onConflict: "auto_number" }
           )
           .then(() => {});
+
+        // A separate append-only row per fix, alongside the live "current
+        // position" overwrite above — this is what an end-of-day route
+        // report reads from, since the fields above only ever hold the
+        // latest point.
+        supabase
+          .from("auto_locations")
+          .insert({
+            auto_number: autoNumber,
+            lat: fix.lat,
+            lng: fix.lng,
+            accuracy: fix.accuracy,
+            recorded_at: fix.at.toISOString(),
+          })
+          .then(() => {});
       },
       (err) => setHud((h) => ({ ...h, gpsError: err.message })),
       { enableHighAccuracy: false, maximumAge: 20000, timeout: 20000 }
@@ -554,20 +569,11 @@ function Player({ autoNumber }) {
   );
 }
 
+// Shown whenever there's nothing to play — just the wallpaper, filling the
+// screen, nothing ticking or clickable. A blank ad slot should look like an
+// idle screen, not a diagnostic readout.
 function IdleScreen() {
-  const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <div className="player__idle">
-      <div className="player__idle-clock">
-        {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-      </div>
-      <div>no ad scheduled right now</div>
-    </div>
-  );
+  return <img className="player__idle" src="/wall.JPG" alt="" />;
 }
 
 function Hud({ autoNumber, hud, current, playlistLength, onClose }) {

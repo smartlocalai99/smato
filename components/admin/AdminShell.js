@@ -15,6 +15,7 @@ const adminLinks = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/drivers", label: "Drivers", countKey: "drivers" },
   { href: "/admin/history", label: "History" },
+  { href: "/admin/reports", label: "Reports" },
 ];
 
 export function useAdminSession() {
