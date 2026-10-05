@@ -56,17 +56,18 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        // Besides keeping the screen on, this makes the activity able to show
-        // itself over a locked/slept screen at all — needed so a remote
-        // lockNow() (see ScreenBridge below) can later be undone by waking
-        // it back up, instead of landing on a keyguard with nothing on it.
+        // FLAG_SHOW_WHEN_LOCKED stays on permanently — it's what lets this
+        // activity be shown over a slept/locked screen at all, needed to
+        // undo a remote lockNow() later. KEEP_SCREEN_ON and DISMISS_KEYGUARD
+        // are deliberately *not* set here even though normal playback wants
+        // both — they're applied in restoreWakeFlags() instead and dropped
+        // right before a remote lockNow(), because leaving them permanently
+        // on would do exactly what their names say and immediately undo the
+        // lock: "never sleep" and "always dismiss the keyguard" fight a
+        // lock that's trying to do precisely that.
         @Suppress("DEPRECATION")
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-                or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-                or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
-        )
+        window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
+        restoreWakeFlags()
         applyImmersiveMode()
 
         setContentView(R.layout.activity_main)
@@ -187,23 +188,48 @@ class MainActivity : AppCompatActivity() {
                     // otherwise, which still looks identical from a glance.
                     if (devicePolicyManager.isAdminActive(adminComponent)) {
                         try {
+                            // Drop these *before* locking — see the comment
+                            // in onCreate for why leaving them on fights the
+                            // lock into doing nothing visible.
+                            clearWakeFlags()
                             devicePolicyManager.lockNow()
                         } catch (_: SecurityException) {
-                            // Some OEM/Android combination refused it — the
-                            // dim+black cover above already applied either way.
+                            // Some OEM/Android combination refused it —
+                            // restore normal operation and fall back to the
+                            // dim+black cover above, which already applied.
+                            restoreWakeFlags()
                         }
                     }
                 } else {
+                    restoreWakeFlags()
                     wakeScreen()
                 }
             }
         }
     }
 
-    // Brings the screen back from an actual lockNow() sleep. The window
-    // flags set in onCreate let this activity show over the keyguard at
-    // all; this is what forces Android to switch the display back on right
-    // now instead of waiting for someone to press the power button.
+    @Suppress("DEPRECATION")
+    private fun clearWakeFlags() {
+        window.clearFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+        )
+    }
+
+    // Normal kiosk operation: never idle-sleep, always dismiss any keyguard.
+    // Set once in onCreate, dropped by clearWakeFlags() right before a
+    // remote lockNow(), and restored here afterward.
+    @Suppress("DEPRECATION")
+    private fun restoreWakeFlags() {
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+        )
+    }
+
+    // Brings the screen back from an actual lockNow() sleep. restoreWakeFlags()
+    // above undoes the fight; this is what actively forces Android to switch
+    // the display back on right now instead of waiting for a power button.
     @Suppress("DEPRECATION")
     private fun wakeScreen() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
