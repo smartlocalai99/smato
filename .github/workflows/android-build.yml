@@ -26,6 +26,20 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      # Every runner starts clean, with no debug signing key on it. Without
+      # this, Gradle generates a brand new one on every single build — so
+      # every APK would be signed differently, and Android refuses to
+      # install an "update" whose signature doesn't match what's already on
+      # a tablet. Caching the keystore under a fixed key means the first
+      # build after this change still gets a one-time new key (there's
+      # nothing cached yet), but every build after that reuses the exact
+      # same one, so updates install cleanly from then on.
+      - name: Cache debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
+
       - name: Build debug APK
         working-directory: android
         run: gradle :app:assembleDebug --no-daemon
