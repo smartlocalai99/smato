@@ -13,10 +13,10 @@ this repo — this app just makes the tablet behave like a dedicated screen:
 - **Location auto-granted** — there's nobody at the tablet to tap "Allow",
   so the WebView grants its own geolocation prompt once the OS permission
   is in place.
-- **Set the URL once** — first launch shows a small form for the player
-  link (e.g. `https://your-app.vercel.app/player`), saved on the tablet
-  from then on. To change it later (wrong URL, new deployment), tap the
-  top-left corner of the screen 5 times.
+- **Already points at smato in production** — first launch loads
+  `https://smato.vercel.app/player` straight away, nothing to type. Only
+  needed if that ever changes: tap the top-left corner of the screen 5
+  times to open the setup form and enter a different URL.
 
 ## Getting the APK
 
@@ -38,17 +38,17 @@ publish a single-purpose kiosk app there.
 1. On the tablet: **Settings → Security → install unknown apps** — allow it
    for whichever app you use to open the APK (Files, Chrome, etc).
 2. Open `app-debug.apk` on the tablet and install.
-3. Launch **smato** once. Grant the location permission prompt (needed for
-   the GPS monitoring in the admin Fleet view).
-4. Enter the player URL and tap **Save & play**.
-5. Press the tablet's **Home** button once — Android will ask which Home
+3. Launch **smato** once — it loads the player on its own, nothing to type.
+   Grant the location permission prompt (needed for the GPS monitoring in
+   the admin Fleet view).
+4. Press the tablet's **Home** button once — Android will ask which Home
    app to use. Pick **smato** and choose **Always**. This is what makes it
    auto-launch after every reboot.
-6. In Android **Settings → Display → Sleep**, set it to the longest option
+5. In Android **Settings → Display → Sleep**, set it to the longest option
    (or Never) as a second layer of protection — the app's keep-screen-on
    flag already prevents sleep while it's running, this just covers the
    brief window before it launches.
-7. Turn off automatic system updates and set battery optimization for
+6. Turn off automatic system updates and set battery optimization for
    smato to **Unrestricted**, same as you would for any kiosk app.
 
 ## Building it yourself

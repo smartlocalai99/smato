@@ -62,7 +62,11 @@ class MainActivity : AppCompatActivity() {
 
         val saved = prefs.getString(KEY_URL, null)
         if (saved.isNullOrBlank()) {
-            showSetup(prefill = "")
+            // Nothing typed yet on this tablet — load smato's own production
+            // URL straight away instead of asking. Tap the corner 5 times to
+            // override it (a different deployment, local testing, etc).
+            prefs.edit().putString(KEY_URL, DEFAULT_URL).apply()
+            webView.loadUrl(DEFAULT_URL)
         } else {
             webView.loadUrl(saved)
         }
@@ -197,6 +201,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val PREFS_NAME = "smato"
         private const val KEY_URL = "player_url"
+        private const val DEFAULT_URL = "https://smato.vercel.app/player"
         private const val LOCATION_PERMISSION_REQUEST = 1001
         private const val RETRY_DELAY_MS = 5000L
         private const val TAP_WINDOW_MS = 3000L
