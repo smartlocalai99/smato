@@ -560,10 +560,11 @@ function Player({ autoNumber }) {
   }, [current, playlist.length]);
 
   // Remote screen-off: pauses whatever's playing and covers it with solid
-  // black (rendered below). There's no way for a regular, unrooted Android
-  // app to switch off the physical backlight — this is the closest real
-  // equivalent: nothing decoding, nothing visible, resumes the instant it's
-  // switched back on from the admin side.
+  // black (rendered below) — in every browser. Inside the Android wrapper
+  // specifically, AndroidNative is also injected, which actually dims the
+  // hardware backlight — a plain web page has no API for that, only native
+  // code can touch real screen brightness. Both resume together the
+  // instant it's switched back on from the admin side.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -573,6 +574,14 @@ function Player({ autoNumber }) {
       video.play().catch(() => {});
     }
   }, [screenOff, current]);
+
+  useEffect(() => {
+    try {
+      window.AndroidNative?.setScreenOff?.(screenOff);
+    } catch {
+      // Not running inside the Android wrapper — nothing to do.
+    }
+  }, [screenOff]);
 
   return (
     <div className="player">

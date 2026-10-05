@@ -10,6 +10,7 @@ import android.os.SystemClock
 import android.view.View
 import android.view.WindowManager
 import android.webkit.GeolocationPermissions
+import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
@@ -103,6 +104,14 @@ class MainActivity : AppCompatActivity() {
         settings.useWideViewPort = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
 
+        // The remote screen-off blackout is rendered in the web page (a
+        // black overlay — see player__blackout), but that alone leaves the
+        // actual backlight untouched on an LCD panel, which is most of a
+        // tablet's power draw regardless of what's on screen. Only native
+        // code can dim real hardware brightness without root, so the page
+        // calls back into this narrow, single-purpose bridge when it toggles.
+        webView.addJavascriptInterface(ScreenBridge(), "AndroidNative")
+
         webView.webChromeClient = object : WebChromeClient() {
             // No one is at the tablet to tap "Allow" — the setup screen
             // (or whoever installs the app) is the point of consent instead.
@@ -133,6 +142,22 @@ class MainActivity : AppCompatActivity() {
             override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
                 reload()
                 return true
+            }
+        }
+    }
+
+    // Exposes exactly one boolean toggle to the page — nothing reflective
+    // or open-ended, so there's nothing here for untrusted content to abuse
+    // even in principle. @JavascriptInterface is required for a method to
+    // be reachable from JS at all (Android blocks reflection access to
+    // anything else by default since API 17, well below this app's minSdk).
+    private inner class ScreenBridge {
+        @JavascriptInterface
+        fun setScreenOff(off: Boolean) {
+            runOnUiThread {
+                val params = window.attributes
+                params.screenBrightness = if (off) 0f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                window.attributes = params
             }
         }
     }

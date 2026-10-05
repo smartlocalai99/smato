@@ -122,7 +122,7 @@ Before the first upgrade to role-protected admin policies, run the exact-email, 
 
 **To check a screen in the field:** tap the top-right corner five times. Shows network, last sync, ads downloaded, what's playing, and the last GPS fix.
 
-**To turn a screen off remotely:** each card in the Fleet view has a **Turn screen off** button. It blacks out that tablet and pauses playback instantly if it's online, and the moment it's online again if it wasn't — then **tap to turn on** brings it straight back. This isn't a true hardware display power-off (no regular Android app can do that without root or a Device Owner profile, and this one deliberately avoids needing either) — it's a full-screen black overlay with everything paused, which is indistinguishable from off to anyone glancing at the tablet, without touching the device's actual backlight or battery-saving state.
+**To turn a screen off remotely:** each card in the Fleet view has a **Turn screen off** button. It blacks out that tablet and pauses playback instantly if it's online, and the moment it's online again if it wasn't — then **tap to turn on** brings it straight back. This isn't a true hardware display power-off (no regular Android app can do that without root or a Device Owner profile, and this one deliberately avoids needing either), but inside the Android app it does dim the real backlight to its minimum, not just show black — an LCD panel's backlight otherwise stays at full brightness no matter what's on screen, so that's the part that actually matters for power draw. In a plain mobile browser (not the Android app) it's still just the black overlay with nothing dimmed.
 
 ---
 
