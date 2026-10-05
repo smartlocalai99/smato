@@ -21,6 +21,7 @@ create table if not exists autos (
   now_playing_title text,
   battery_level smallint check (battery_level between 0 and 100),
   battery_charging boolean,
+  screen_off boolean not null default false,
   app_version text,
   created_at timestamptz not null default now()
 );
@@ -33,6 +34,7 @@ alter table autos add column if not exists battery_level smallint;
 alter table autos drop constraint if exists autos_battery_level_check;
 alter table autos add constraint autos_battery_level_check check (battery_level between 0 and 100);
 alter table autos add column if not exists battery_charging boolean;
+alter table autos add column if not exists screen_off boolean not null default false;
 
 -- ---------------------------------------------------------------------------
 -- ads: one row per uploaded video/image. auto_number = null means "play on

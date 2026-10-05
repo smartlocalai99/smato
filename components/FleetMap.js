@@ -107,7 +107,15 @@ export default function FleetMap({ autos }) {
         glideMarkerTo(existing, pos);
         existing.setPopupContent(popupHtml(auto));
       } else {
-        const marker = L.marker(pos, { icon: autoIcon }).addTo(map).bindPopup(popupHtml(auto));
+        const marker = L.marker(pos, { icon: autoIcon })
+          .addTo(map)
+          .bindPopup(popupHtml(auto))
+          .bindTooltip(auto.auto_number, {
+            permanent: true,
+            direction: "top",
+            offset: [0, -16],
+            className: "fleet-map-label",
+          });
         markersRef.current.set(auto.auto_number, marker);
       }
     });

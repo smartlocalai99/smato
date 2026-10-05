@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { setAutoScreen } from "@/lib/supabase";
 import { STATUS_STYLES, autoStatus, batteryLabel, batteryStyle, timeAgo, useAutoAddress } from "@/lib/autoStatus";
 
 // Live status card per auto: online/idle/offline from the heartbeat, what
@@ -30,6 +32,16 @@ function FleetCard({ auto }) {
   const address = useAutoAddress(auto.last_lat, auto.last_lng);
   const mapUrl = hasGps ? `https://www.google.com/maps?q=${auto.last_lat},${auto.last_lng}` : null;
   const coords = hasGps ? `${auto.last_lat.toFixed(4)}, ${auto.last_lng.toFixed(4)}` : null;
+  const [screenBusy, setScreenBusy] = useState(false);
+
+  async function toggleScreen() {
+    setScreenBusy(true);
+    try {
+      await setAutoScreen(auto.auto_number, !auto.screen_off);
+    } finally {
+      setScreenBusy(false);
+    }
+  }
 
   return (
     <div className={`flex flex-col gap-2.5 rounded-lg border bg-panel p-4 ${styles.border}`}>
@@ -80,6 +92,18 @@ function FleetCard({ auto }) {
           </dd>
         </div>
       </dl>
+      <button
+        type="button"
+        onClick={toggleScreen}
+        disabled={screenBusy}
+        className={`rounded-md border px-2.5 py-1.5 font-mono text-[0.7rem] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+          auto.screen_off
+            ? "border-red/35 bg-red/10 text-red hover:border-red"
+            : "border-line bg-panel-2 text-text-dim hover:border-text-faint"
+        }`}
+      >
+        {screenBusy ? "…" : auto.screen_off ? "Screen off · tap to turn on" : "Turn screen off"}
+      </button>
     </div>
   );
 }

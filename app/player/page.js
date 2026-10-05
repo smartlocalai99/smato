@@ -139,6 +139,13 @@ function Player({ autoNumber }) {
   const [playlist, setPlaylist] = useState([]); // [{id, title, url, sortOrder}]
   const [playIndex, setPlayIndex] = useState(0);
   const [hudOpen, setHudOpen] = useState(false);
+  const [screenOff, setScreenOff] = useState(false);
+  // Read inside the retry/autoplay-recovery logic below, which runs on its
+  // own timer — a plain state variable in that closure would be stale.
+  const screenOffRef = useRef(false);
+  useEffect(() => {
+    screenOffRef.current = screenOff;
+  }, [screenOff]);
   const [hud, setHud] = useState({
     online: typeof navigator !== "undefined" ? navigator.onLine : true,
     lastSync: null,
@@ -409,9 +416,24 @@ function Player({ autoNumber }) {
     const channel = supabase
       .channel(ADS_CHANNEL_NAME)
       .on("broadcast", { event: "changed" }, () => sync())
+      .on("broadcast", { event: "screen" }, ({ payload }) => {
+        if (payload?.auto_number === autoNumber) setScreenOff(Boolean(payload.screen_off));
+      })
       .subscribe();
     return () => supabase.removeChannel(channel);
-  }, [sync]);
+  }, [sync, autoNumber]);
+
+  // Picks up a blackout that was set while this tablet was offline — the
+  // broadcast above only reaches a tablet that's already connected when it
+  // fires, so this is the catch-up path for "was it off before I rebooted?".
+  useEffect(() => {
+    supabase
+      .from("autos")
+      .select("screen_off")
+      .eq("auto_number", autoNumber)
+      .maybeSingle()
+      .then(({ data }) => setScreenOff(Boolean(data?.screen_off)));
+  }, [autoNumber]);
 
   // Re-check which ads are time-active once a minute, offline-safe.
   useEffect(() => {
@@ -470,6 +492,9 @@ function Player({ autoNumber }) {
     video.src = current.url;
 
     const tryPlay = () => {
+      // A remote screen-off is a deliberate pause, not something to fight —
+      // skip it here instead of fighting the toggle below on every retry tick.
+      if (screenOffRef.current) return;
       video.play().catch((err) => {
         setHud((h) => ({ ...h, playError: err?.message || "play() blocked" }));
       });
@@ -534,6 +559,21 @@ function Player({ autoNumber }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, playlist.length]);
 
+  // Remote screen-off: pauses whatever's playing and covers it with solid
+  // black (rendered below). There's no way for a regular, unrooted Android
+  // app to switch off the physical backlight — this is the closest real
+  // equivalent: nothing decoding, nothing visible, resumes the instant it's
+  // switched back on from the admin side.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (screenOff) {
+      video.pause();
+    } else if (current && current.mediaType !== "image") {
+      video.play().catch(() => {});
+    }
+  }, [screenOff, current]);
+
   return (
     <div className="player">
       {current ? (
@@ -555,6 +595,7 @@ function Player({ autoNumber }) {
       ) : (
         <IdleScreen />
       )}
+      {screenOff && <div className="player__blackout" aria-hidden="true" />}
       <div className="player__tap-zone" onClick={handleCornerTap} />
       {hudOpen && (
         <Hud
