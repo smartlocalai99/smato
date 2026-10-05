@@ -1,11 +1,16 @@
 package com.smato.player
 
 import android.annotation.SuppressLint
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.view.View
 import android.view.WindowManager
@@ -42,11 +47,26 @@ class MainActivity : AppCompatActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var tapCount = 0
 
+    private val devicePolicyManager by lazy {
+        getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+    }
+    private val adminComponent by lazy { ComponentName(this, AdminReceiver::class.java) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Besides keeping the screen on, this makes the activity able to show
+        // itself over a locked/slept screen at all — needed so a remote
+        // lockNow() (see ScreenBridge below) can later be undone by waking
+        // it back up, instead of landing on a keyguard with nothing on it.
+        @Suppress("DEPRECATION")
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+        )
         applyImmersiveMode()
 
         setContentView(R.layout.activity_main)
@@ -56,6 +76,7 @@ class MainActivity : AppCompatActivity() {
 
         setupWebView()
         ensureLocationPermission()
+        ensureDeviceAdmin()
 
         findViewById<View>(R.id.corner_tap).setOnClickListener { onCornerTap() }
         findViewById<Button>(R.id.save_button).setOnClickListener { saveUrl() }
@@ -158,8 +179,43 @@ class MainActivity : AppCompatActivity() {
                 val params = window.attributes
                 params.screenBrightness = if (off) 0f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
                 window.attributes = params
+
+                if (off) {
+                    // Only does anything once the one-time device admin
+                    // prompt (ensureDeviceAdmin, below) has been accepted on
+                    // this tablet — falls back to just the dim+black above
+                    // otherwise, which still looks identical from a glance.
+                    if (devicePolicyManager.isAdminActive(adminComponent)) {
+                        try {
+                            devicePolicyManager.lockNow()
+                        } catch (_: SecurityException) {
+                            // Some OEM/Android combination refused it — the
+                            // dim+black cover above already applied either way.
+                        }
+                    }
+                } else {
+                    wakeScreen()
+                }
             }
         }
+    }
+
+    // Brings the screen back from an actual lockNow() sleep. The window
+    // flags set in onCreate let this activity show over the keyguard at
+    // all; this is what forces Android to switch the display back on right
+    // now instead of waiting for someone to press the power button.
+    @Suppress("DEPRECATION")
+    private fun wakeScreen() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        }
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        val wakeLock = powerManager.newWakeLock(
+            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
+            "smato:wake"
+        )
+        wakeLock.acquire(3000)
     }
 
     private fun reload() {
@@ -182,6 +238,22 @@ class MainActivity : AppCompatActivity() {
                 LOCATION_PERMISSION_REQUEST
             )
         }
+    }
+
+    // One-time per tablet: shows the system's own "Activate this device
+    // admin app?" prompt so a later remote screen-off can call lockNow().
+    // Declining it just means that tablet keeps using the dim+black
+    // fallback — nothing else about the app depends on this being granted.
+    private fun ensureDeviceAdmin() {
+        if (devicePolicyManager.isAdminActive(adminComponent)) return
+        val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
+            putExtra(
+                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                "Lets smato lock this tablet's screen remotely from the admin panel."
+            )
+        }
+        startActivity(intent)
     }
 
     private fun onCornerTap() {
