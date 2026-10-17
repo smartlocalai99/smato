@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { driverApi } from "@/lib/drivers/api";
-import { maskAadhaar, maskLicence } from "@/lib/drivers/validation";
 import { PAYMENT_AMOUNT, paymentStatus } from "@/lib/drivers/payment";
 import { supabase } from "@/lib/supabase";
 import { STATUS_STYLES, autoStatus, batteryLabel, batteryStyle, timeAgo, useAutoAddress } from "@/lib/autoStatus";
@@ -82,8 +82,10 @@ function LinkedAuto({ autoNumber }) {
 }
 
 export default function DriverProfilePage({ params }) {
+  const router = useRouter();
   const [record, setRecord] = useState({ loading: true, driver: null, signedUrls: {}, error: "" });
   const [payBusy, setPayBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const load = useCallback(async () => {
     setRecord({ loading: true, driver: null, signedUrls: {}, error: "" });
@@ -114,6 +116,24 @@ export default function DriverProfilePage({ params }) {
       await load();
     } finally {
       setPayBusy(false);
+    }
+  }
+
+  async function handleDelete() {
+    const driver = record.driver;
+    if (!driver || !confirm(`Delete ${driver.name}? This removes their record and documents for good.`)) return;
+    setDeleteBusy(true);
+    try {
+      await driverApi.remove(driver.id);
+      await driverApi.removeFiles([
+        driver.photo_path,
+        driver.driving_licence_image_path,
+        driver.aadhaar_image_path,
+      ]);
+      router.push("/admin/drivers");
+    } catch (err) {
+      setDeleteBusy(false);
+      alert(err.message || "Couldn't delete this driver.");
     }
   }
 
@@ -193,6 +213,14 @@ export default function DriverProfilePage({ params }) {
           >
             Edit
           </Link>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleteBusy}
+            className="rounded-full border border-red/35 px-4 py-2 text-sm font-semibold text-red transition-colors hover:border-red disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {deleteBusy ? "Deleting…" : "Delete"}
+          </button>
         </div>
       </div>
 
@@ -253,11 +281,11 @@ export default function DriverProfilePage({ params }) {
               <dt className="font-mono text-[0.66rem] uppercase tracking-wide text-text-faint">
                 Driving Licence
               </dt>
-              <dd>{maskLicence(driver.driving_licence_number)}</dd>
+              <dd>{driver.driving_licence_number}</dd>
             </div>
             <div>
               <dt className="font-mono text-[0.66rem] uppercase tracking-wide text-text-faint">Aadhaar</dt>
-              <dd>{maskAadhaar(driver.aadhaar_number)}</dd>
+              <dd>{driver.aadhaar_number}</dd>
             </div>
           </dl>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

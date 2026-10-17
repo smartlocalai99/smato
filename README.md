@@ -11,6 +11,8 @@ The authenticated admin area also includes driver management:
 - `/admin/drivers/[id]` — a driver's profile: their linked tablet's live status, documents, and payment cycle with a "mark as paid" action
 - `/admin/drivers/[id]/edit` — update a driver's details or replace individual documents
 - `/admin/history` — ads that aren't live right now (paused, not started yet, or finished), kept off the main dashboard so it stays focused on what's actually running
+- `/admin/autos` — every tablet in the fleet in one place: add a new one, set or edit its SIM number, see its live status/battery/last seen, turn its screen off or back on, or delete it
+- `/admin/reports` — pick an auto and a date to see its GPS route for that day, drawn on a map
 
 Plus a small Android app in [`android/`](android/) — a kiosk wrapper around
 `/player` (no watermark, screen always on, auto-launches after reboot). See
@@ -146,7 +148,9 @@ Each auto can have **one registered driver only** — the auto number plate doub
 
 **Payment cycle** — every driver is paid ₹1,000 on a rolling 30-day cycle starting from their onboarding date (or their last payment, once they have one). A driver's profile shows whether they're due, and a **Mark this month as paid** button resets the clock. The Drivers list and their profile both show a due/paid badge; the Drivers page header totals how many drivers are currently due.
 
-Driver documents are private. The app stores only private storage paths and creates short-lived signed URLs for authenticated admins when an image must be shown. The directory masks Aadhaar and Driving Licence values; full values and images appear only in an authenticated driver's profile or edit view. Keep real identifiers and signed storage URLs out of documentation, issue reports, and screenshots.
+Driver documents are private. The app stores only private storage paths and creates short-lived signed URLs for authenticated admins when an image must be shown. Full Aadhaar and Driving Licence numbers show everywhere in the admin console — the directory, the profile, the edit form — since every viewer is already an authenticated admin. Keep real identifiers and signed storage URLs out of documentation, issue reports, and screenshots regardless.
+
+A driver's profile also has a **Delete** button — removes the record and their uploaded documents for good, with a confirmation first.
 
 ## How the offline part works
 

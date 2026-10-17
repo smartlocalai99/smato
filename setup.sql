@@ -13,6 +13,7 @@ create table if not exists autos (
   id uuid primary key default gen_random_uuid(),
   auto_number text unique not null,
   label text,
+  sim_number text unique,
   last_seen_at timestamptz,
   last_lat double precision,
   last_lng double precision,
@@ -35,6 +36,10 @@ alter table autos drop constraint if exists autos_battery_level_check;
 alter table autos add constraint autos_battery_level_check check (battery_level between 0 and 100);
 alter table autos add column if not exists battery_charging boolean;
 alter table autos add column if not exists screen_off boolean not null default false;
+alter table autos add column if not exists sim_number text;
+drop index if exists autos_sim_number_idx;
+alter table autos drop constraint if exists autos_sim_number_key;
+alter table autos add constraint autos_sim_number_key unique (sim_number);
 
 -- ---------------------------------------------------------------------------
 -- ads: one row per uploaded video/image. auto_number = null means "play on

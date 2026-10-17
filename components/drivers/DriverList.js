@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { filterDrivers, maskAadhaar, maskLicence } from "@/lib/drivers/validation";
+import { filterDrivers } from "@/lib/drivers/validation";
 import { paymentStatus } from "@/lib/drivers/payment";
 
 const DOCUMENTS = [
@@ -111,8 +111,8 @@ export default function DriverList({ drivers = [], photoUrls = {} }) {
                     </th>
                     <td className="px-4 py-3 text-text-dim">{driver.mobile}</td>
                     <td className="px-4 py-3 font-mono text-[0.8rem]">{driver.auto_number_plate}</td>
-                    <td className="px-4 py-3 text-text-dim">{maskLicence(driver.driving_licence_number)}</td>
-                    <td className="px-4 py-3 text-text-dim">{maskAadhaar(driver.aadhaar_number)}</td>
+                    <td className="px-4 py-3 text-text-dim">{driver.driving_licence_number}</td>
+                    <td className="px-4 py-3 text-text-dim">{driver.aadhaar_number}</td>
                     <td className="px-4 py-3">
                       <DocumentStatus driver={driver} />
                     </td>

@@ -14,6 +14,7 @@ const AdminSessionContext = createContext(undefined);
 const adminLinks = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/drivers", label: "Drivers", countKey: "drivers" },
+  { href: "/admin/autos", label: "Autos", countKey: "autos" },
   { href: "/admin/history", label: "History" },
   { href: "/admin/reports", label: "Reports" },
 ];
@@ -44,8 +45,8 @@ export default function AdminShell({ children }) {
     };
   }, []);
 
-  // A quick head-only count for the nav badge — not the full driver list,
-  // just "how many," so this stays cheap even as the fleet grows.
+  // A quick head-only count for the nav badges — not the full lists, just
+  // "how many," so this stays cheap even as the fleet grows.
   useEffect(() => {
     if (!session) return;
     let mounted = true;
@@ -55,6 +56,14 @@ export default function AdminShell({ children }) {
       .then(({ count }) => {
         if (mounted && typeof count === "number") {
           setCounts((c) => ({ ...c, drivers: count }));
+        }
+      });
+    supabase
+      .from("autos")
+      .select("id", { count: "exact", head: true })
+      .then(({ count }) => {
+        if (mounted && typeof count === "number") {
+          setCounts((c) => ({ ...c, autos: count }));
         }
       });
     return () => {
@@ -103,10 +112,24 @@ export default function AdminShell({ children }) {
   return (
     <AdminSessionContext.Provider value={session}>
       <div className="console min-h-screen-safe bg-ink lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)]">
-        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-line bg-ink/90 px-4 py-4 backdrop-blur-sm sm:px-6 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:h-dvh lg:flex-col lg:items-stretch lg:justify-start lg:border-b-0 lg:border-r lg:px-4 lg:py-5">
-          <div className="flex items-baseline gap-2.5">
-            <span className="inline-block h-2 w-2 rounded-full bg-amber shadow-[0_0_8px_var(--amber)]" />
-            <span className="font-display text-lg">smato / admin</span>
+        <header className="sticky top-0 z-10 flex flex-col gap-3 border-b border-line bg-ink/90 px-4 py-4 backdrop-blur-sm sm:px-6 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:h-dvh lg:border-b-0 lg:border-r lg:px-4 lg:py-5">
+          {/* On mobile, the logo and sign-out share one row and the nav gets
+              a full-width row of its own below — five links no longer have
+              to fight the logo and a button for space on one phone-width
+              line. display:contents on desktop un-groups them again so the
+              sidebar can stack logo / nav / sign-out (pinned to the bottom
+              via lg:order-last) the way it always has. */}
+          <div className="flex items-center justify-between gap-3 lg:contents">
+            <div className="flex items-baseline gap-2.5">
+              <span className="inline-block h-2 w-2 rounded-full bg-amber shadow-[0_0_8px_var(--amber)]" />
+              <span className="font-display text-lg">smato / admin</span>
+            </div>
+            <button
+              onClick={() => supabase.auth.signOut()}
+              className="rounded-md border border-line bg-transparent px-3 py-1.5 text-sm font-semibold text-text hover:border-text-faint lg:order-last lg:mt-auto lg:text-left"
+            >
+              Sign out
+            </button>
           </div>
           <nav
             aria-label="Admin navigation"
@@ -128,12 +151,6 @@ export default function AdminShell({ children }) {
               </Link>
             ))}
           </nav>
-          <button
-            onClick={() => supabase.auth.signOut()}
-            className="rounded-md border border-line bg-transparent px-3 py-1.5 text-sm font-semibold text-text hover:border-text-faint lg:mt-auto lg:text-left"
-          >
-            Sign out
-          </button>
         </header>
         <div className="min-w-0 lg:col-start-2">{children}</div>
       </div>

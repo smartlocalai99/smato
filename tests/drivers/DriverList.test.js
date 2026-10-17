@@ -35,7 +35,7 @@ const photoUrls = {
 afterEach(cleanup);
 
 describe("DriverList", () => {
-  it("renders driver directory details without exposing full identity numbers", () => {
+  it("renders full driver directory details", () => {
     render(<DriverList drivers={drivers} photoUrls={photoUrls} />);
 
     expect(screen.getByRole("img", { name: "Photo of Ravi Kumar" })).toHaveAttribute("src", photoUrls["driver-1/photo.jpg"]);
@@ -46,14 +46,10 @@ describe("DriverList", () => {
     expect(screen.getByText("AP10XY9999")).toBeInTheDocument();
     expect(screen.getByText("9876543210")).toBeInTheDocument();
     expect(screen.getByText("9123456780")).toBeInTheDocument();
-    expect(screen.getByText("•••• •••• 9012")).toBeInTheDocument();
-    expect(screen.getByText("•••••••••••2345")).toBeInTheDocument();
-    expect(screen.getByText("•••• •••• 1098")).toBeInTheDocument();
-    expect(screen.getByText("•••••••••5555")).toBeInTheDocument();
-    expect(screen.queryByText("123456789012")).not.toBeInTheDocument();
-    expect(screen.queryByText("TS0920230012345")).not.toBeInTheDocument();
-    expect(screen.queryByText("987654321098")).not.toBeInTheDocument();
-    expect(screen.queryByText("AP10202255555")).not.toBeInTheDocument();
+    expect(screen.getByText("123456789012")).toBeInTheDocument();
+    expect(screen.getByText("TS0920230012345")).toBeInTheDocument();
+    expect(screen.getByText("987654321098")).toBeInTheDocument();
+    expect(screen.getByText("AP10202255555")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Edit Ravi Kumar" })).toHaveAttribute("href", "/admin/drivers/driver-1/edit");
     expect(screen.getByRole("link", { name: "Edit Anita Rao" })).toHaveAttribute("href", "/admin/drivers/driver-2/edit");
     expect(screen.getByLabelText("Document status for Ravi Kumar")).toHaveTextContent("Photo presentDriving Licence presentAadhaar present");
