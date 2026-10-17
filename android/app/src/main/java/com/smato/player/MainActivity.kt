@@ -134,6 +134,15 @@ class MainActivity : AppCompatActivity() {
         // calls back into this narrow, single-purpose bridge when it toggles.
         webView.addJavascriptInterface(ScreenBridge(), "AndroidNative")
 
+        // Nobody should be able to do anything by touching the ad itself —
+        // no accidental scroll/zoom/tap, no long-press "save image" menu on
+        // a photo ad. Swallow every touch except inside the page's own
+        // top-right debug-HUD corner, which stays reachable in person the
+        // same way the native corner_tap view (top-left, for the URL setup
+        // screen) already does — both are for whoever installs/maintains
+        // these tablets, not whoever happens to be riding in one.
+        webView.setOnTouchListener { view, event -> !isInHudTapZone(view, event.x, event.y) }
+
         webView.webChromeClient = object : WebChromeClient() {
             // No one is at the tablet to tap "Allow" — the setup screen
             // (or whoever installs the app) is the point of consent instead.
@@ -247,6 +256,16 @@ class MainActivity : AppCompatActivity() {
     private fun reload() {
         val saved = prefs.getString(KEY_URL, null)
         if (!saved.isNullOrBlank()) webView.loadUrl(saved)
+    }
+
+    // Mirrors the web page's own .player__tap-zone CSS (25% of each
+    // dimension, capped at 160dp) so the one spot where touches still pass
+    // through to the page lines up with where its HUD actually listens.
+    private fun isInHudTapZone(view: View, x: Float, y: Float): Boolean {
+        val capPx = 160f * resources.displayMetrics.density
+        val zoneWidth = minOf(view.width * 0.25f, capPx)
+        val zoneHeight = minOf(view.height * 0.25f, capPx)
+        return x >= view.width - zoneWidth && y <= zoneHeight
     }
 
     private fun ensureLocationPermission() {
