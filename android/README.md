@@ -24,6 +24,12 @@ this repo — this app just makes the tablet behave like a dedicated screen:
   the tablet's connection back to the admin panel along with it, so "turn
   it back on" sometimes never arrived. Staying dimmed keeps that
   connection alive, so control from the admin panel always works.
+- **Screen pinning** — the app pins itself on launch (Android's built-in
+  `startLockTask()`), which blocks the notification shade, recents, and
+  home button. This is the regular, no-setup version — not the stronger
+  Device Owner kind, so it can still be deliberately escaped by holding
+  Back + Recents together, just not stumbled into by accident. Re-engages
+  on its own if that ever happens.
 
 ## Getting the APK
 
@@ -46,8 +52,9 @@ publish a single-purpose kiosk app there.
    for whichever app you use to open the APK (Files, Chrome, etc).
 2. Open `app-debug.apk` on the tablet and install.
 3. Launch **smato** once — it loads the player on its own, nothing to type.
-   Grant the location permission prompt (needed for GPS monitoring) — the
-   only prompt this app asks for.
+   Grant the location permission prompt (needed for GPS monitoring), and
+   if Android shows a one-time "pin this app?" confirmation for screen
+   pinning, accept it.
 4. Press the tablet's **Home** button once — Android will ask which Home
    app to use. Pick **smato** and choose **Always**. This is what makes it
    auto-launch after every reboot.

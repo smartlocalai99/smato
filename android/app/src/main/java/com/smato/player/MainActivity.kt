@@ -1,6 +1,7 @@
 package com.smato.player
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -48,6 +49,7 @@ class MainActivity : AppCompatActivity() {
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         applyImmersiveMode()
+        engageLockTask()
 
         setContentView(R.layout.activity_main)
         webView = findViewById(R.id.webview)
@@ -76,6 +78,33 @@ class MainActivity : AppCompatActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) applyImmersiveMode()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        engageLockTask()
+    }
+
+    // Screen pinning: blocks the notification shade, recents, and home
+    // button while active — without this, swiping down from the top edge
+    // still reaches the system, outside the WebView's own touch handling
+    // entirely. Unlike the stronger Device Owner version, this can be
+    // escaped deliberately (holding Back + Recents together) — not
+    // something a passenger would stumble into by accident, but not an
+    // unbreakable lock either. Re-checked on every resume so it re-engages
+    // if anyone ever does escape it. The first time this runs, Android
+    // shows a one-time system confirmation before pinning takes effect.
+    private fun engageLockTask() {
+        val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+        if (!activityManager.isInLockTaskMode) {
+            try {
+                startLockTask()
+            } catch (_: Exception) {
+                // Some OEM/Android combination refused it (or screen
+                // pinning is disabled in this tablet's own Settings) —
+                // everything else about the app still works regardless.
+            }
+        }
     }
 
     @Suppress("DEPRECATION")
