@@ -86,9 +86,32 @@ export default function PlayerPage() {
   return <Player autoNumber={autoNumber} />;
 }
 
+// AUTO-01, AUTO-02, ... — the next unused number in that sequence, so
+// whoever's setting up a new tablet doesn't have to go check what the
+// last one was called. Only ever a suggestion: still a plain editable
+// field, for the rare case of deliberately reusing or skipping a number.
+function nextAutoNumber(autos) {
+  const used = autos
+    .map((a) => /^AUTO-(\d+)$/.exec(a.auto_number))
+    .filter(Boolean)
+    .map((match) => parseInt(match[1], 10));
+  const next = used.length ? Math.max(...used) + 1 : 1;
+  return `AUTO-${String(next).padStart(2, "0")}`;
+}
+
 function SetupScreen({ onSaved }) {
-  const [value, setValue] = useState("AUTO-01");
+  const [value, setValue] = useState("");
   const [label, setLabel] = useState("");
+  const touchedRef = useRef(false);
+
+  useEffect(() => {
+    supabase
+      .from("autos")
+      .select("auto_number")
+      .then(({ data }) => {
+        if (!touchedRef.current) setValue(nextAutoNumber(data || []));
+      });
+  }, []);
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -111,7 +134,10 @@ function SetupScreen({ onSaved }) {
           <input
             id="autoNumber"
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              touchedRef.current = true;
+              setValue(e.target.value);
+            }}
             placeholder="AUTO-01"
             autoFocus
           />
