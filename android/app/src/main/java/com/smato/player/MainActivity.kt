@@ -1,16 +1,11 @@
 package com.smato.player
 
 import android.annotation.SuppressLint
-import android.app.admin.DevicePolicyManager
-import android.content.ComponentName
-import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.PowerManager
 import android.os.SystemClock
 import android.view.View
 import android.view.WindowManager
@@ -47,27 +42,11 @@ class MainActivity : AppCompatActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var tapCount = 0
 
-    private val devicePolicyManager by lazy {
-        getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
-    }
-    private val adminComponent by lazy { ComponentName(this, AdminReceiver::class.java) }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        // FLAG_SHOW_WHEN_LOCKED stays on permanently — it's what lets this
-        // activity be shown over a slept/locked screen at all, needed to
-        // undo a remote lockNow() later. KEEP_SCREEN_ON and DISMISS_KEYGUARD
-        // are deliberately *not* set here even though normal playback wants
-        // both — they're applied in restoreWakeFlags() instead and dropped
-        // right before a remote lockNow(), because leaving them permanently
-        // on would do exactly what their names say and immediately undo the
-        // lock: "never sleep" and "always dismiss the keyguard" fight a
-        // lock that's trying to do precisely that.
-        @Suppress("DEPRECATION")
-        window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
-        restoreWakeFlags()
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         applyImmersiveMode()
 
         setContentView(R.layout.activity_main)
@@ -77,7 +56,6 @@ class MainActivity : AppCompatActivity() {
 
         setupWebView()
         ensureLocationPermission()
-        ensureDeviceAdmin()
 
         findViewById<View>(R.id.corner_tap).setOnClickListener { onCornerTap() }
         findViewById<Button>(R.id.save_button).setOnClickListener { saveUrl() }
@@ -201,74 +179,26 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread { touchBlocked = !enabled }
         }
 
+        // Deliberately *just* a brightness toggle now — an earlier version
+        // also called DevicePolicyManager.lockNow() for a true OS-level
+        // sleep when a tablet had accepted the device-admin prompt. That
+        // was a stronger "off," but an unreliable one: once the screen is
+        // actually asleep, Android can suspend this WebView's connection
+        // to the admin panel right along with it, so the "turn back on"
+        // command sometimes never arrived — exactly the "works sometimes"
+        // complaint this was built to fix. Dimming to minimum brightness
+        // instead of truly sleeping keeps the tablet's connection alive the
+        // whole time, which is what makes control from the admin panel
+        // reliable instead of a coin flip. Still visually indistinguishable
+        // from off.
         @JavascriptInterface
         fun setScreenOff(off: Boolean) {
             runOnUiThread {
                 val params = window.attributes
                 params.screenBrightness = if (off) 0f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
                 window.attributes = params
-
-                if (off) {
-                    // Only does anything once the one-time device admin
-                    // prompt (ensureDeviceAdmin, below) has been accepted on
-                    // this tablet — falls back to just the dim+black above
-                    // otherwise, which still looks identical from a glance.
-                    if (devicePolicyManager.isAdminActive(adminComponent)) {
-                        try {
-                            // Drop these *before* locking — see the comment
-                            // in onCreate for why leaving them on fights the
-                            // lock into doing nothing visible.
-                            clearWakeFlags()
-                            devicePolicyManager.lockNow()
-                        } catch (_: SecurityException) {
-                            // Some OEM/Android combination refused it —
-                            // restore normal operation and fall back to the
-                            // dim+black cover above, which already applied.
-                            restoreWakeFlags()
-                        }
-                    }
-                } else {
-                    restoreWakeFlags()
-                    wakeScreen()
-                }
             }
         }
-    }
-
-    @Suppress("DEPRECATION")
-    private fun clearWakeFlags() {
-        window.clearFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
-        )
-    }
-
-    // Normal kiosk operation: never idle-sleep, always dismiss any keyguard.
-    // Set once in onCreate, dropped by clearWakeFlags() right before a
-    // remote lockNow(), and restored here afterward.
-    @Suppress("DEPRECATION")
-    private fun restoreWakeFlags() {
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
-        )
-    }
-
-    // Brings the screen back from an actual lockNow() sleep. restoreWakeFlags()
-    // above undoes the fight; this is what actively forces Android to switch
-    // the display back on right now instead of waiting for a power button.
-    @Suppress("DEPRECATION")
-    private fun wakeScreen() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
-        }
-        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-        val wakeLock = powerManager.newWakeLock(
-            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
-            "smato:wake"
-        )
-        wakeLock.acquire(3000)
     }
 
     private fun reload() {
@@ -301,22 +231,6 @@ class MainActivity : AppCompatActivity() {
                 LOCATION_PERMISSION_REQUEST
             )
         }
-    }
-
-    // One-time per tablet: shows the system's own "Activate this device
-    // admin app?" prompt so a later remote screen-off can call lockNow().
-    // Declining it just means that tablet keeps using the dim+black
-    // fallback — nothing else about the app depends on this being granted.
-    private fun ensureDeviceAdmin() {
-        if (devicePolicyManager.isAdminActive(adminComponent)) return
-        val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
-            putExtra(
-                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                "Lets smato lock this tablet's screen remotely from the admin panel."
-            )
-        }
-        startActivity(intent)
     }
 
     private fun onCornerTap() {

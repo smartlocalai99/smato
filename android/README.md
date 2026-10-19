@@ -17,11 +17,13 @@ this repo — this app just makes the tablet behave like a dedicated screen:
   `https://smato.vercel.app/player` straight away, nothing to type. Only
   needed if that ever changes: tap the top-left corner of the screen 5
   times to open the setup form and enter a different URL.
-- **Remote screen lock** — the admin panel's "Turn screen off" button
-  calls back into this app to actually lock the device, not just show
-  black. Requires accepting the one-time "device admin" prompt on first
-  launch (step 3 below); skip it and that tablet still blacks out and
-  dims when told to, it just won't be a true OS-level lock.
+- **Remote screen off** — the admin panel's "Turn screen off" button calls
+  back into this app, which blacks out the page and dims the window's own
+  brightness to minimum. Deliberately not a true OS sleep (there used to
+  be one, via `DevicePolicyManager.lockNow()`) — a real sleep can suspend
+  the tablet's connection back to the admin panel along with it, so "turn
+  it back on" sometimes never arrived. Staying dimmed keeps that
+  connection alive, so control from the admin panel always works.
 
 ## Getting the APK
 
@@ -44,10 +46,8 @@ publish a single-purpose kiosk app there.
    for whichever app you use to open the APK (Files, Chrome, etc).
 2. Open `app-debug.apk` on the tablet and install.
 3. Launch **smato** once — it loads the player on its own, nothing to type.
-   Grant the location permission prompt (needed for GPS monitoring), then
-   accept the **"Activate this device admin app?"** prompt (needed for the
-   admin panel's remote screen-off to actually lock the device — see
-   above). Both only ever ask once.
+   Grant the location permission prompt (needed for GPS monitoring) — the
+   only prompt this app asks for.
 4. Press the tablet's **Home** button once — Android will ask which Home
    app to use. Pick **smato** and choose **Always**. This is what makes it
    auto-launch after every reboot.
@@ -81,7 +81,7 @@ android/
       java/com/smato/player/
         MainActivity.kt     WebView shell: kiosk flags, permissions, setup screen
         BootReceiver.kt     relaunches the app after a reboot
-        AdminReceiver.kt    required boilerplate for the device admin prompt (remote lock)
+        AdminReceiver.kt    device-admin boilerplate, currently unused (see "Remote screen off" above)
       res/                  icon, layout, colors matching the web app's theme
     build.gradle.kts
   build.gradle.kts
