@@ -99,10 +99,29 @@ function nextAutoNumber(autos) {
   return `AUTO-${String(next).padStart(2, "0")}`;
 }
 
+// Tells the Android wrapper whether touch should do anything right now.
+// Blocking is only ever appropriate while an ad is actually playing with
+// nothing to interact with — the setup screen and the debug HUD both need
+// real taps, so they explicitly ask for touch back while they're shown.
+// No-ops in a plain browser, where there's no native wrapper listening.
+function notifyNativeTouch(enabled) {
+  try {
+    window.AndroidNative?.setTouchEnabled?.(enabled);
+  } catch {
+    // Not running inside the Android wrapper — nothing to do.
+  }
+}
+
 function SetupScreen({ onSaved }) {
   const [value, setValue] = useState("");
   const [label, setLabel] = useState("");
   const touchedRef = useRef(false);
+
+  // The setup form needs real taps — make sure touch isn't left blocked
+  // from some earlier state (shouldn't happen, but cheap to be sure).
+  useEffect(() => {
+    notifyNativeTouch(true);
+  }, []);
 
   useEffect(() => {
     supabase
@@ -187,6 +206,14 @@ function Player({ autoNumber }) {
 
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef(null);
+
+  // Touch only gets blocked while actually playing, with the HUD closed —
+  // the HUD's own close button lives inside this same WebView and needs
+  // real taps to work, same as the corner tap-zone that opens it.
+  useEffect(() => {
+    notifyNativeTouch(hudOpen);
+    return () => notifyNativeTouch(true);
+  }, [hudOpen]);
 
   // --- tap-5x-corner to toggle the debug HUD ---------------------------------
   const handleCornerTap = useCallback(() => {

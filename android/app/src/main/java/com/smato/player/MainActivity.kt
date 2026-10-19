@@ -134,14 +134,20 @@ class MainActivity : AppCompatActivity() {
         // calls back into this narrow, single-purpose bridge when it toggles.
         webView.addJavascriptInterface(ScreenBridge(), "AndroidNative")
 
-        // Nobody should be able to do anything by touching the ad itself —
+        // Nobody should be able to do anything by touching a *playing ad* —
         // no accidental scroll/zoom/tap, no long-press "save image" menu on
-        // a photo ad. Swallow every touch except inside the page's own
-        // top-right debug-HUD corner, which stays reachable in person the
-        // same way the native corner_tap view (top-left, for the URL setup
-        // screen) already does — both are for whoever installs/maintains
-        // these tablets, not whoever happens to be riding in one.
-        webView.setOnTouchListener { view, event -> !isInHudTapZone(view, event.x, event.y) }
+        // a photo ad. But this same WebView also shows the one-time setup
+        // screen and the debug HUD, both of which need real taps to work at
+        // all — so blocking is opt-in from the page itself (see
+        // ScreenBridge.setTouchEnabled), defaulting to normal/unblocked
+        // until the page confirms it's actually just showing an ad with
+        // nothing to interact with. The top-right HUD corner always passes
+        // through regardless, same as the native corner_tap view (top-left,
+        // URL setup) — both exist for whoever installs these tablets, not
+        // whoever's riding in one.
+        webView.setOnTouchListener { view, event ->
+            if (touchBlocked) !isInHudTapZone(view, event.x, event.y) else false
+        }
 
         webView.webChromeClient = object : WebChromeClient() {
             // No one is at the tablet to tap "Allow" — the setup screen
@@ -177,12 +183,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Exposes exactly one boolean toggle to the page — nothing reflective
-    // or open-ended, so there's nothing here for untrusted content to abuse
-    // even in principle. @JavascriptInterface is required for a method to
-    // be reachable from JS at all (Android blocks reflection access to
-    // anything else by default since API 17, well below this app's minSdk).
+    // Defaults to *not* blocking touch — a safe default for whatever the
+    // page happens to be showing before it's had a chance to say otherwise
+    // (first paint, a slow network, etc). Only the page itself, once it
+    // knows it's genuinely just playing an ad, asks for this to flip on.
+    private var touchBlocked = false
+
+    // Exposes only two plain boolean toggles to the page — nothing
+    // reflective or open-ended, so there's nothing here for untrusted
+    // content to abuse even in principle. @JavascriptInterface is required
+    // for a method to be reachable from JS at all (Android blocks
+    // reflection access to anything else by default since API 17, well
+    // below this app's minSdk).
     private inner class ScreenBridge {
+        @JavascriptInterface
+        fun setTouchEnabled(enabled: Boolean) {
+            runOnUiThread { touchBlocked = !enabled }
+        }
+
         @JavascriptInterface
         fun setScreenOff(off: Boolean) {
             runOnUiThread {
