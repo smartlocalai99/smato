@@ -46,9 +46,8 @@
             </intent-filter>
         </receiver>
 
-        <!-- Lets the admin panel's remote screen-off actually lock the
-             device (DevicePolicyManager.lockNow()), not just dim this
-             app's own window — see MainActivity.ensureDeviceAdmin(). -->
+        <!-- Device-owner component for managed kiosk mode. Ownership must
+             be provisioned once; ordinary device-admin activation is insufficient. -->
         <receiver
             android:name=".AdminReceiver"
             android:exported="true"

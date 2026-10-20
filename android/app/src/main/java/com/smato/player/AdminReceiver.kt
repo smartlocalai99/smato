@@ -2,8 +2,7 @@ package com.smato.player
 
 import android.app.admin.DeviceAdminReceiver
 
-// Required boilerplate for any Device Admin app. This one only ever calls
-// lockNow() from MainActivity — it has no interest in admin lifecycle
-// callbacks (password changes, admin-disabled events, etc), so nothing is
-// overridden here.
+// Provisioned as device owner by the installer. MainActivity uses this
+// component to allowlist the player for lock task mode and persist its Home
+// assignment. No admin lifecycle callbacks are needed.
 class AdminReceiver : DeviceAdminReceiver()

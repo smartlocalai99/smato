@@ -2,12 +2,19 @@ package com.smato.player
 
 import android.annotation.SuppressLint
 import android.app.ActivityManager
+import android.app.KeyguardManager
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import android.webkit.GeolocationPermissions
@@ -42,6 +49,10 @@ class MainActivity : AppCompatActivity() {
     private val prefs by lazy { getSharedPreferences(PREFS_NAME, MODE_PRIVATE) }
     private val mainHandler = Handler(Looper.getMainLooper())
     private var tapCount = 0
+    private var activityResumed = false
+    private val devicePolicyManager by lazy {
+        getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,7 +60,6 @@ class MainActivity : AppCompatActivity() {
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         applyImmersiveMode()
-        engageLockTask()
 
         setContentView(R.layout.activity_main)
         webView = findViewById(R.id.webview)
@@ -77,33 +87,76 @@ class MainActivity : AppCompatActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) applyImmersiveMode()
+        if (hasFocus) {
+            applyImmersiveMode()
+            // Unlocking the screen can restore focus without another resume.
+            if (activityResumed) engageManagedLockTask()
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        engageLockTask()
+        activityResumed = true
+        configureManagedKiosk()
+        engageManagedLockTask()
     }
 
-    // Screen pinning: blocks the notification shade, recents, and home
-    // button while active — without this, swiping down from the top edge
-    // still reaches the system, outside the WebView's own touch handling
-    // entirely. Unlike the stronger Device Owner version, this can be
-    // escaped deliberately (holding Back + Recents together) — not
-    // something a passenger would stumble into by accident, but not an
-    // unbreakable lock either. Re-checked on every resume so it re-engages
-    // if anyone ever does escape it. The first time this runs, Android
-    // shows a one-time system confirmation before pinning takes effect.
-    private fun engageLockTask() {
+    override fun onPause() {
+        activityResumed = false
+        super.onPause()
+    }
+
+    private fun configureManagedKiosk() {
+        // Device ownership is provisioned once by the installer. Enabling
+        // ordinary "device admin" in Settings is not enough for silent locking.
+        if (!devicePolicyManager.isDeviceOwnerApp(packageName)) return
+        val admin = ComponentName(this, AdminReceiver::class.java)
+        try {
+            devicePolicyManager.setLockTaskPackages(admin, arrayOf(packageName))
+        } catch (error: SecurityException) {
+            Log.w(TAG, "Unable to allowlist the player for kiosk mode", error)
+        }
+
+        // Persist the Home choice so Android opens the player after a reboot.
+        val homeFilter = IntentFilter(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+            addCategory(Intent.CATEGORY_DEFAULT)
+        }
+        try {
+            devicePolicyManager.addPersistentPreferredActivity(
+                admin,
+                homeFilter,
+                ComponentName(this, MainActivity::class.java)
+            )
+        } catch (error: SecurityException) {
+            Log.w(TAG, "Unable to set the player as the default Home app", error)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun engageManagedLockTask() {
+        // Without allowlisting, startLockTask() invokes consumer screen pinning
+        // and its "hold Back + Recents to unpin" UI. Never use that fallback.
+        // This also supports tablets allowlisted by an external device manager.
+        if (!devicePolicyManager.isLockTaskPermitted(packageName)) return
+        val keyguard = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+        if (keyguard.isKeyguardLocked) return
+
         val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-        if (!activityManager.isInLockTaskMode) {
-            try {
-                startLockTask()
-            } catch (_: Exception) {
-                // Some OEM/Android combination refused it (or screen
-                // pinning is disabled in this tablet's own Settings) —
-                // everything else about the app still works regardless.
-            }
+        val alreadyLockedOrPinned = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            activityManager.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
+        } else {
+            activityManager.isInLockTaskMode
+        }
+        if (alreadyLockedOrPinned) return
+
+        try {
+            startLockTask()
+        } catch (error: SecurityException) {
+            Log.w(TAG, "Managed kiosk mode was not permitted", error)
+        } catch (error: IllegalStateException) {
+            // A foreground transition may race this call; retry on resume/focus.
+            Log.w(TAG, "Managed kiosk mode could not start yet", error)
         }
     }
 
@@ -302,6 +355,7 @@ class MainActivity : AppCompatActivity() {
     override fun onBackPressed() {}
 
     companion object {
+        private const val TAG = "SmatoKiosk"
         private const val PREFS_NAME = "smato"
         private const val KEY_URL = "player_url"
         private const val DEFAULT_URL = "https://smato.vercel.app/player"

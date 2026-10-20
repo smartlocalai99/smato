@@ -7,9 +7,9 @@ this repo — this app just makes the tablet behave like a dedicated screen:
 - **Screen never sleeps** — `FLAG_KEEP_SCREEN_ON` is set the whole time the
   app is in the foreground, so it stays lit with zero taps.
 - **Always landscape**, locked in the manifest.
-- **Comes back on its own** — registered as the tablet's Home app (so
-  pressing Home always returns here) and also listens for boot-completed,
-  so a reboot lands straight back on the player.
+- **Comes back on its own** — can act as the tablet's Home app and also
+  listens for boot-completed. Managed kiosk setup selects it as Home
+  automatically; otherwise, select it manually during installation.
 - **Location auto-granted** — there's nobody at the tablet to tap "Allow",
   so the WebView grants its own geolocation prompt once the OS permission
   is in place.
@@ -24,12 +24,12 @@ this repo — this app just makes the tablet behave like a dedicated screen:
   the tablet's connection back to the admin panel along with it, so "turn
   it back on" sometimes never arrived. Staying dimmed keeps that
   connection alive, so control from the admin panel always works.
-- **Screen pinning** — the app pins itself on launch (Android's built-in
-  `startLockTask()`), which blocks the notification shade, recents, and
-  home button. This is the regular, no-setup version — not the stronger
-  Device Owner kind, so it can still be deliberately escaped by holding
-  Back + Recents together, just not stumbled into by accident. Re-engages
-  on its own if that ever happens.
+- **Automatic managed kiosk mode** — once provisioned as device owner (below),
+  the app makes itself the default Home app and enters Android lock task mode
+  on launch/resume, including after reboot. This avoids regular screen pinning
+  and its "hold Back + Recents to unpin" hint. Without device-owner setup or
+  an external device manager's allowlist, the app stays immersive but does not
+  lock the tablet or request screen pinning.
 
 ## Getting the APK
 
@@ -52,9 +52,7 @@ publish a single-purpose kiosk app there.
    for whichever app you use to open the APK (Files, Chrome, etc).
 2. Open `app-debug.apk` on the tablet and install.
 3. Launch **smato** once — it loads the player on its own, nothing to type.
-   Grant the location permission prompt (needed for GPS monitoring), and
-   if Android shows a one-time "pin this app?" confirmation for screen
-   pinning, accept it.
+   Grant the location permission prompt (needed for GPS monitoring).
 4. Press the tablet's **Home** button once — Android will ask which Home
    app to use. Pick **smato** and choose **Always**. This is what makes it
    auto-launch after every reboot.
@@ -64,6 +62,52 @@ publish a single-purpose kiosk app there.
    brief window before it launches.
 6. Turn off automatic system updates and set battery optimization for
    smato to **Unrestricted**, same as you would for any kiosk app.
+
+## One-time setup for automatic locking without the pinning hint
+
+Android requires a device policy controller to allowlist the app for managed
+[lock task mode](https://developer.android.com/work/dpc/dedicated-devices/lock-task-mode).
+Installing an APK or enabling ordinary device-admin access alone cannot do
+this. Provision each dedicated tablet once:
+
+1. Install this APK, launch smato, and grant the location permission.
+   If an older version is still manually screen-pinned, unpin it once first.
+2. On a tablet with no accounts, secondary users, or existing device owner,
+   enable USB debugging and connect it to your setup computer. Approve that
+   computer's debugging connection on the tablet.
+3. Run:
+
+   ```bash
+   adb shell dpm set-device-owner com.smato.player/.AdminReceiver
+   adb shell am start -n com.smato.player/.MainActivity
+   ```
+
+4. After smato resumes, it allowlists itself, persists its Home assignment,
+   and enters managed lock task mode automatically. Reboot the tablet to
+   verify that it opens the player and locks again without the pinning hint.
+   An existing device PIN/password still needs unlocking after boot.
+
+If Android refuses device ownership, inspect the command's error. The
+[Android setup guide](https://developer.android.com/work/dpc/dedicated-devices/cookbook#development)
+requires no accounts when provisioning with ADB. A tablet already managed by
+another device manager should have that manager allowlist `com.smato.player`
+for lock task mode and configure it as Home instead.
+
+Managed lock task mode blocks Home/Recents and the consumer unpin gesture;
+the five-tap URL setup remains available inside smato. Keep the authorized
+setup computer available for maintenance. The app leaves Android's default
+power-menu behavior unchanged.
+
+### Tablet verification
+
+- Without device ownership/allowlisting: launch and resume the app; no
+  screen-pinning confirmation should appear.
+- With ownership configured: launch and reboot; confirm playback returns,
+  Home/Recents cannot leave the app, and the unpin hint does not appear.
+- Inspect `adb shell dumpsys activity activities`; on Android 6+ the lock
+  task state should be `LOCKED`, not `PINNED`.
+- Check screen off/on and unlock, the five-tap URL form, location permission,
+  and the admin panel's remote dim/on controls.
 
 ## Building it yourself
 
@@ -88,7 +132,7 @@ android/
       java/com/smato/player/
         MainActivity.kt     WebView shell: kiosk flags, permissions, setup screen
         BootReceiver.kt     relaunches the app after a reboot
-        AdminReceiver.kt    device-admin boilerplate, currently unused (see "Remote screen off" above)
+        AdminReceiver.kt    device-owner component for managed kiosk policies
       res/                  icon, layout, colors matching the web app's theme
     build.gradle.kts
   build.gradle.kts
