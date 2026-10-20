@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -50,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var tapCount = 0
     private var activityResumed = false
+    private var playerReady = false
     private val devicePolicyManager by lazy {
         getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
     }
@@ -135,6 +137,10 @@ class MainActivity : AppCompatActivity() {
 
     @Suppress("DEPRECATION")
     private fun engageManagedLockTask() {
+        // Let the installer finish choosing an auto before locking. The web
+        // player signals readiness again after each main-page load.
+        if (!activityResumed || !playerReady) return
+
         // Without allowlisting, startLockTask() invokes consumer screen pinning
         // and its "hold Back + Recents to unpin" UI. Never use that fallback.
         // This also supports tablets allowlisted by an external device manager.
@@ -225,6 +231,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                // A new document must confirm it has reached the content
+                // screen. Existing managed locking remains in force.
+                playerReady = false
+            }
+
             override fun onReceivedError(
                 view: WebView?,
                 request: WebResourceRequest?,
@@ -249,13 +262,19 @@ class MainActivity : AppCompatActivity() {
     // knows it's genuinely just playing an ad, asks for this to flip on.
     private var touchBlocked = false
 
-    // Exposes only two plain boolean toggles to the page — nothing
-    // reflective or open-ended, so there's nothing here for untrusted
-    // content to abuse even in principle. @JavascriptInterface is required
-    // for a method to be reachable from JS at all (Android blocks
-    // reflection access to anything else by default since API 17, well
-    // below this app's minSdk).
+    // Exposes readiness, touch and brightness controls to the page.
+    // JavaScript cannot exit managed locking or bypass device allowlisting.
     private inner class ScreenBridge {
+        @JavascriptInterface
+        fun onPlayerReady() {
+            runOnUiThread {
+                playerReady = true
+                // If currently paused or keyguard-locked, resume/focus will
+                // retry using this readiness state.
+                engageManagedLockTask()
+            }
+        }
+
         @JavascriptInterface
         fun setTouchEnabled(enabled: Boolean) {
             runOnUiThread { touchBlocked = !enabled }

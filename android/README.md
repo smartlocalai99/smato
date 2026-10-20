@@ -26,7 +26,9 @@ this repo — this app just makes the tablet behave like a dedicated screen:
   connection alive, so control from the admin panel always works.
 - **Automatic managed kiosk mode** — once provisioned as device owner (below),
   the app makes itself the default Home app and enters Android lock task mode
-  on launch/resume, including after reboot. This avoids regular screen pinning
+  when the player content screen opens after **Save & start playing**. A saved
+  auto also locks automatically when its content screen returns after restart;
+  the initial auto-name form stays unlocked. This avoids regular screen pinning
   and its "hold Back + Recents to unpin" hint. Without device-owner setup or
   an external device manager's allowlist, the app stays immersive but does not
   lock the tablet or request screen pinning.
@@ -82,8 +84,11 @@ this. Provision each dedicated tablet once:
    adb shell am start -n com.smato.player/.MainActivity
    ```
 
-4. After smato resumes, it allowlists itself, persists its Home assignment,
-   and enters managed lock task mode automatically. Reboot the tablet to
+4. After smato resumes, it allowlists itself and persists its Home assignment.
+   Enter the auto number and tap **Save & start playing**; the content screen
+   then enters managed lock task mode automatically. If the auto number is
+   already saved, opening the content screen locks it without another tap.
+   Reboot the tablet to
    verify that it opens the player and locks again without the pinning hint.
    An existing device PIN/password still needs unlocking after boot.
 
@@ -100,6 +105,9 @@ power-menu behavior unchanged.
 
 ### Tablet verification
 
+- On a fresh installation with ownership configured: the auto-name form
+  remains unlocked. **Save & start playing** opens the content screen and
+  locks automatically, including when there are no ads or no network.
 - Without device ownership/allowlisting: launch and resume the app; no
   screen-pinning confirmation should appear.
 - With ownership configured: launch and reboot; confirm playback returns,
@@ -108,6 +116,11 @@ power-menu behavior unchanged.
   task state should be `LOCKED`, not `PINNED`.
 - Check screen off/on and unlock, the five-tap URL form, location permission,
   and the admin panel's remote dim/on controls.
+
+The updated APK and web player must both be deployed. The player calls the
+native `onPlayerReady()` bridge after setup or restoration of a saved auto.
+Older web builds do not send this signal and therefore will not trigger
+automatic locking in this APK until the web update loads.
 
 ## Building it yourself
 

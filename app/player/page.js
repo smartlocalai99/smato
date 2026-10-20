@@ -180,6 +180,16 @@ function SetupScreen({ onSaved }) {
 }
 
 function Player({ autoNumber }) {
+  // Lock only after setup has handed over to the content screen. This also
+  // runs when a saved auto is restored, even before ads or the network load.
+  useEffect(() => {
+    try {
+      window.AndroidNative?.onPlayerReady?.();
+    } catch {
+      // Browsers and older APKs can still play without this bridge method.
+    }
+  }, []);
+
   const videoRef = useRef(null);
   const [playlist, setPlaylist] = useState([]); // [{id, title, url, sortOrder}]
   const [playIndex, setPlayIndex] = useState(0);
