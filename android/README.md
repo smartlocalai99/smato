@@ -24,14 +24,19 @@ this repo — this app just makes the tablet behave like a dedicated screen:
   the tablet's connection back to the admin panel along with it, so "turn
   it back on" sometimes never arrived. Staying dimmed keeps that
   connection alive, so control from the admin panel always works.
-- **Automatic managed kiosk mode** — once provisioned as device owner (below),
-  the app makes itself the default Home app and enters Android lock task mode
-  when the player content screen opens after **Save & start playing**. A saved
-  auto also locks automatically when its content screen returns after restart;
-  the initial auto-name form stays unlocked. This avoids regular screen pinning
-  and its "hold Back + Recents to unpin" hint. Without device-owner setup or
-  an external device manager's allowlist, the app stays immersive but does not
-  lock the tablet or request screen pinning.
+- **Automatic screen locking after setup** — opening the content screen after
+  **Save & start playing** requests Android screen pinning. Accept Android's
+  confirmation if shown; once pinned, the notification shade and Home/Recents
+  are blocked. Android controls the "hold Back + Recents to unpin" hint; the
+  app cannot hide it in ordinary screen-pinning mode. If the confirmation is
+  declined, the app does not keep asking on every focus change; close and
+  relaunch it to request pinning again.
+- **Silent managed kiosk mode** — once provisioned as device owner (below),
+  the app makes itself the default Home app and uses managed lock task mode
+  instead of ordinary screen pinning, avoiding its confirmation and unpin hint.
+  An external device manager can also allowlist the app. Both modes wait for
+  the content screen; a saved auto requests locking again after app restart,
+  while the initial auto-name form stays unlocked.
 
 ## Getting the APK
 
@@ -81,15 +86,15 @@ this. Provision each dedicated tablet once:
 
    ```bash
    adb shell dpm set-device-owner com.smato.player/.AdminReceiver
-   adb shell am start -n com.smato.player/.MainActivity
+   adb shell am start -S -n com.smato.player/.MainActivity
    ```
 
 4. After smato resumes, it allowlists itself and persists its Home assignment.
    Enter the auto number and tap **Save & start playing**; the content screen
    then enters managed lock task mode automatically. If the auto number is
    already saved, opening the content screen locks it without another tap.
-   Reboot the tablet to
-   verify that it opens the player and locks again without the pinning hint.
+   Reboot the tablet to verify that it opens the player and locks again
+   without the pinning hint.
    An existing device PIN/password still needs unlocking after boot.
 
 If Android refuses device ownership, inspect the command's error. The
@@ -108,12 +113,15 @@ power-menu behavior unchanged.
 - On a fresh installation with ownership configured: the auto-name form
   remains unlocked. **Save & start playing** opens the content screen and
   locks automatically, including when there are no ads or no network.
-- Without device ownership/allowlisting: launch and resume the app; no
-  screen-pinning confirmation should appear.
+- Without device ownership/allowlisting: save the auto or restore a saved one,
+  accept Android's pinning confirmation if shown, and confirm the notification
+  shade and Home/Recents cannot leave the player. Android's unpin hint is expected.
+- Decline the ordinary pinning confirmation and change focus/resume: it must
+  not keep reopening. Relaunch the app to request pinning again.
 - With ownership configured: launch and reboot; confirm playback returns,
   Home/Recents cannot leave the app, and the unpin hint does not appear.
-- Inspect `adb shell dumpsys activity activities`; on Android 6+ the lock
-  task state should be `LOCKED`, not `PINNED`.
+- Inspect `adb shell dumpsys activity activities`; on Android 6+ managed kiosk
+  mode reports `LOCKED`, while ordinary screen pinning reports `PINNED`.
 - Check screen off/on and unlock, the five-tap URL form, location permission,
   and the admin panel's remote dim/on controls.
 

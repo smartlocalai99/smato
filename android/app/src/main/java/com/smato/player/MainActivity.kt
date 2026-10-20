@@ -52,6 +52,7 @@ class MainActivity : AppCompatActivity() {
     private var tapCount = 0
     private var activityResumed = false
     private var playerReady = false
+    private var screenPinningRequested = false
     private val devicePolicyManager by lazy {
         getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
     }
@@ -92,7 +93,7 @@ class MainActivity : AppCompatActivity() {
         if (hasFocus) {
             applyImmersiveMode()
             // Unlocking the screen can restore focus without another resume.
-            if (activityResumed) engageManagedLockTask()
+            if (activityResumed) engageLockTask()
         }
     }
 
@@ -100,7 +101,7 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         activityResumed = true
         configureManagedKiosk()
-        engageManagedLockTask()
+        engageLockTask()
     }
 
     override fun onPause() {
@@ -136,15 +137,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     @Suppress("DEPRECATION")
-    private fun engageManagedLockTask() {
+    private fun engageLockTask() {
         // Let the installer finish choosing an auto before locking. The web
         // player signals readiness again after each main-page load.
         if (!activityResumed || !playerReady) return
 
-        // Without allowlisting, startLockTask() invokes consumer screen pinning
-        // and its "hold Back + Recents to unpin" UI. Never use that fallback.
-        // This also supports tablets allowlisted by an external device manager.
-        if (!devicePolicyManager.isLockTaskPermitted(packageName)) return
         val keyguard = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
         if (keyguard.isKeyguardLocked) return
 
@@ -156,13 +153,22 @@ class MainActivity : AppCompatActivity() {
         }
         if (alreadyLockedOrPinned) return
 
+        // Allowlisted tablets lock silently. Other tablets still need the
+        // ordinary pinning protection; Android owns its confirmation and hint.
+        val managedLock = devicePolicyManager.isLockTaskPermitted(packageName)
+        // A confirmation steals/restores focus. Request it only once per app
+        // launch so declining it cannot create a repeating dialog loop.
+        if (!managedLock && screenPinningRequested) return
+
         try {
+            if (!managedLock) screenPinningRequested = true
             startLockTask()
         } catch (error: SecurityException) {
-            Log.w(TAG, "Managed kiosk mode was not permitted", error)
+            Log.w(TAG, "Screen locking was not permitted", error)
         } catch (error: IllegalStateException) {
             // A foreground transition may race this call; retry on resume/focus.
-            Log.w(TAG, "Managed kiosk mode could not start yet", error)
+            screenPinningRequested = false
+            Log.w(TAG, "Screen locking could not start yet", error)
         }
     }
 
@@ -271,7 +277,7 @@ class MainActivity : AppCompatActivity() {
                 playerReady = true
                 // If currently paused or keyguard-locked, resume/focus will
                 // retry using this readiness state.
-                engageManagedLockTask()
+                engageLockTask()
             }
         }
 
