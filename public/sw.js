@@ -5,10 +5,10 @@
 //     player page (lib/adCache.js) — this worker only *serves* them, never
 //     wipes them. Ads survive an app update; re-downloading a video every
 //     time this file changes would defeat the whole point of caching them.
-const SHELL_CACHE_NAME = "smato-shell-v5";
+const SHELL_CACHE_NAME = "smato-shell-v6";
 const AD_CACHE_NAME = "smato-ads-v1";
 const AD_PATH_PREFIX = "/__ad-cache__/";
-const SHELL_URLS = ["/player", "/manifest.json", "/idle.jpg"];
+const SHELL_URLS = ["/player", "/idle.jpg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -85,6 +85,9 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return; // never intercept Supabase requests
   if (url.pathname.startsWith("/admin")) return; // admin always needs a live network anyway
+  // The install manifest must always be the deployed one — a cached copy
+  // would keep handing phones a stale home-screen app.
+  if (url.pathname === "/manifest.json") return;
 
   // Downloaded ads: pure cache read, range-aware. The page writes these
   // directly via the Cache Storage API when it downloads an ad — nothing

@@ -121,9 +121,18 @@ export default function AdminShell({ children }) {
               sidebar can stack logo / nav / sign-out (pinned to the bottom
               via lg:order-last) the way it always has. */}
           <div className="flex items-center justify-between gap-3 lg:contents">
-            <div className="flex items-baseline gap-2.5">
-              <span className="inline-block h-2 w-2 rounded-full bg-amber shadow-[0_0_8px_var(--amber)]" />
-              <span className="whitespace-nowrap font-display text-lg">smato / admin</span>
+            <div className="flex items-center gap-2.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/icons/icon-192.png"
+                alt=""
+                width={36}
+                height={36}
+                className="h-9 w-9 flex-none rounded-[10px] border border-line bg-white"
+              />
+              <span className="whitespace-nowrap font-display text-lg">
+                smato <span className="text-text-faint">admin</span>
+              </span>
             </div>
             <div className="flex items-center gap-2 lg:order-last lg:mt-auto lg:flex-col lg:items-stretch">
               <InstallApp />

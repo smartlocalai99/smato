@@ -33,11 +33,16 @@ export default function SignIn() {
         onSubmit={handleSubmit}
         className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-line bg-panel p-8"
       >
-        <div>
-          <span className="font-mono text-xs uppercase tracking-[0.3em] text-amber">
-            smato · admin
-          </span>
-          <h1 className="mt-1 font-display text-2xl font-semibold">Sign in</h1>
+        <div className="flex flex-col items-start gap-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/icons/icon-192.png"
+            alt="smato"
+            width={64}
+            height={64}
+            className="h-16 w-16 rounded-2xl border border-line bg-white"
+          />
+          <h1 className="font-display text-2xl font-semibold">Sign in</h1>
         </div>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="mobile" className="font-mono text-xs tracking-wide text-text-dim">

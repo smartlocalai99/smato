@@ -84,10 +84,14 @@ export default function InstallApp() {
             </li>
           ))}
         </ol>
+        <p className="mt-6 rounded-xl border border-line bg-panel-2 px-4 py-3 text-sm leading-relaxed text-text-dim">
+          Already have a smato icon that opens the player screen? Press and hold it, remove it,
+          then add smato again from this page.
+        </p>
         <button
           type="button"
           onClick={() => setHelpOpen(false)}
-          className="mt-7 w-full rounded-full border border-line px-5 py-3 font-semibold text-text hover:border-text-faint sm:w-auto sm:py-2.5"
+          className="mt-6 w-full rounded-full border border-line px-5 py-3 font-semibold text-text hover:border-text-faint sm:w-auto sm:py-2.5"
         >
           Done
         </button>
