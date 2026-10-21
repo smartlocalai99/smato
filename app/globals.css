@@ -244,6 +244,13 @@ h3 {
    the fleet map that can't take a Tailwind class directly. Everything else
    about the map (container, marker, popup content) is styled in
    components/FleetMap.js with Tailwind classes instead. */
+/* Leaflet stacks its panes up to z-index 1000; keep them inside the map so
+   they can't paint over the sticky admin header while scrolling. */
+.fleet-map {
+  isolation: isolate;
+  z-index: 0;
+}
+
 .fleet-map .leaflet-popup-content-wrapper {
   border-radius: 8px;
   font-family: var(--font-body);

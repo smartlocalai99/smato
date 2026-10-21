@@ -31,6 +31,7 @@ export default function AdminPage() {
 
 function Console() {
   const [autos, setAutos] = useState([]);
+  const [drivers, setDrivers] = useState({});
   const [ads, setAds] = useState([]);
   const [loadError, setLoadError] = useState("");
 
@@ -51,8 +52,15 @@ function Console() {
     else setAds(data || []);
   }, []);
 
+  // Who drives which auto, for the driver line + call button on each card.
+  const loadDrivers = useCallback(async () => {
+    const { data, error } = await supabase.from("drivers").select("id,name,mobile,auto_number_plate");
+    if (!error) setDrivers(Object.fromEntries((data || []).map((d) => [d.auto_number_plate, d])));
+  }, []);
+
   useEffect(() => {
     loadAutos();
+    loadDrivers();
     loadAds();
     warmAdsChannel();
 
@@ -69,7 +77,7 @@ function Console() {
       supabase.removeChannel(channel);
       clearInterval(poll);
     };
-  }, [loadAutos, loadAds]);
+  }, [loadAutos, loadDrivers, loadAds]);
 
   return (
     <div className="flex flex-col gap-10 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
@@ -80,7 +88,7 @@ function Console() {
             {autos.length} auto(s) checked in
           </span>
         </div>
-        <FleetStrip autos={autos} />
+        <FleetStrip autos={autos} drivers={drivers} />
         <FleetMap autos={autos} />
       </section>
 
