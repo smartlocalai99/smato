@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { filterDrivers } from "@/lib/drivers/validation";
 import { paymentStatus } from "@/lib/drivers/payment";
+import PhoneActions from "@/components/admin/PhoneActions";
 
 const DOCUMENTS = [
   { key: "photo_path", label: "Photo" },
@@ -45,9 +46,20 @@ function PaymentBadge({ driver }) {
   );
 }
 
-export default function DriverList({ drivers = [], photoUrls = {} }) {
+export default function DriverList({ drivers = [], photoUrls = {}, onDelete }) {
   const [query, setQuery] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
   const matchingDrivers = filterDrivers(drivers, query);
+
+  async function handleDelete(driver) {
+    if (!confirm(`Delete ${driver.name}? This removes their record and documents for good.`)) return;
+    setDeletingId(driver.id);
+    try {
+      await onDelete(driver);
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <section aria-labelledby="driver-directory-heading">
@@ -68,7 +80,7 @@ export default function DriverList({ drivers = [], photoUrls = {} }) {
 
       {matchingDrivers.length ? (
         <div className="overflow-x-auto rounded-2xl border border-line">
-          <table className="w-full min-w-[46rem] border-collapse text-sm">
+          <table className="w-full min-w-[54rem] border-collapse text-sm">
             <caption id="driver-directory-heading" className="sr-only">
               Registered drivers
             </caption>
@@ -109,7 +121,12 @@ export default function DriverList({ drivers = [], photoUrls = {} }) {
                         <span>{driver.name}</span>
                       </Link>
                     </th>
-                    <td className="px-4 py-3 text-text-dim">{driver.mobile}</td>
+                    <td className="px-4 py-3 text-text-dim">
+                      <div className="flex items-center gap-2">
+                        <span className="whitespace-nowrap">{driver.mobile}</span>
+                        <PhoneActions number={driver.mobile} name={driver.name} />
+                      </div>
+                    </td>
                     <td className="px-4 py-3 font-mono text-[0.8rem]">{driver.auto_number_plate}</td>
                     <td className="px-4 py-3 text-text-dim">{driver.driving_licence_number}</td>
                     <td className="px-4 py-3 text-text-dim">{driver.aadhaar_number}</td>
@@ -120,13 +137,26 @@ export default function DriverList({ drivers = [], photoUrls = {} }) {
                       <PaymentBadge driver={driver} />
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        className="whitespace-nowrap rounded-full border border-line px-3.5 py-1.5 text-xs font-semibold transition-colors hover:border-text-faint"
-                        href={`/admin/drivers/${driver.id}/edit`}
-                        aria-label={`Edit ${driver.name}`}
-                      >
-                        Edit
-                      </Link>
+                      <div className="flex justify-end gap-2">
+                        <Link
+                          className="whitespace-nowrap rounded-full border border-line px-3.5 py-1.5 text-xs font-semibold transition-colors hover:border-text-faint"
+                          href={`/admin/drivers/${driver.id}/edit`}
+                          aria-label={`Edit ${driver.name}`}
+                        >
+                          Edit
+                        </Link>
+                        {onDelete && (
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(driver)}
+                            disabled={deletingId === driver.id}
+                            aria-label={`Delete ${driver.name}`}
+                            className="whitespace-nowrap rounded-full border border-red/35 px-3.5 py-1.5 text-xs font-semibold text-red transition-colors hover:border-red disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {deletingId === driver.id ? "Deleting…" : "Delete"}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

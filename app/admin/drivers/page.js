@@ -7,7 +7,7 @@ import DriverList from "@/components/drivers/DriverList";
 import DriverForm from "@/components/drivers/DriverForm";
 import Modal from "@/components/admin/Modal";
 import { driverApi } from "@/lib/drivers/api";
-import { registerDriver } from "@/lib/drivers/mutations";
+import { deleteDriver, registerDriver } from "@/lib/drivers/mutations";
 import { paymentStatus } from "@/lib/drivers/payment";
 
 export default function DriversPage() {
@@ -63,6 +63,16 @@ export default function DriversPage() {
     } finally {
       setRegisterBusy(false);
     }
+  }
+
+  async function handleDelete(driver) {
+    try {
+      await deleteDriver(driver);
+    } catch (err) {
+      alert(err.message || "Couldn't delete this driver.");
+    }
+    setJustRegistered(false);
+    loadDirectory();
   }
 
   const cleanupWarning = searchParams.get("updated") === "1" && searchParams.get("cleanup") === "1"
@@ -136,7 +146,7 @@ export default function DriversPage() {
           </button>
         </div>
       ) : directory.drivers.length ? (
-        <DriverList drivers={directory.drivers} photoUrls={directory.photoUrls} />
+        <DriverList drivers={directory.drivers} photoUrls={directory.photoUrls} onDelete={handleDelete} />
       ) : (
         <section
           aria-label="No drivers registered"

@@ -682,11 +682,12 @@ function Player({ autoNumber }) {
   );
 }
 
-// Shown whenever there's nothing to play — just the wallpaper, filling the
-// screen, nothing ticking or clickable. A blank ad slot should look like an
+// Shown whenever there's nothing to play — the smato poster, fitted whole
+// (letterboxed on black) so its phone number and handle never get cropped.
+// Nothing ticking or clickable. A blank ad slot should look like an
 // idle screen, not a diagnostic readout.
 function IdleScreen() {
-  return <img className="player__idle" src="/wall.JPG" alt="" />;
+  return <img className="player__idle" src="/idle.jpg" alt="" />;
 }
 
 function Hud({ autoNumber, hud, current, playlistLength, onClose }) {

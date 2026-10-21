@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { driverApi } from "@/lib/drivers/api";
+import { deleteDriver } from "@/lib/drivers/mutations";
 import { PAYMENT_AMOUNT, paymentStatus } from "@/lib/drivers/payment";
 import { supabase } from "@/lib/supabase";
+import PhoneActions from "@/components/admin/PhoneActions";
 import { STATUS_STYLES, autoStatus, batteryLabel, batteryStyle, timeAgo, useAutoAddress } from "@/lib/autoStatus";
 
 function DocumentTile({ label, url }) {
@@ -124,12 +126,7 @@ export default function DriverProfilePage({ params }) {
     if (!driver || !confirm(`Delete ${driver.name}? This removes their record and documents for good.`)) return;
     setDeleteBusy(true);
     try {
-      await driverApi.remove(driver.id);
-      await driverApi.removeFiles([
-        driver.photo_path,
-        driver.driving_licence_image_path,
-        driver.aadhaar_image_path,
-      ]);
+      await deleteDriver(driver);
       router.push("/admin/drivers");
     } catch (err) {
       setDeleteBusy(false);
@@ -197,7 +194,10 @@ export default function DriverProfilePage({ params }) {
           )}
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight">{driver.name}</h1>
-            <p className="text-text-dim">{driver.mobile}</p>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="text-text-dim">{driver.mobile}</span>
+              <PhoneActions number={driver.mobile} name={driver.name} />
+            </div>
           </div>
         </div>
         <div className="flex gap-2">

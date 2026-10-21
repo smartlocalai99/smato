@@ -5,10 +5,10 @@
 //     player page (lib/adCache.js) — this worker only *serves* them, never
 //     wipes them. Ads survive an app update; re-downloading a video every
 //     time this file changes would defeat the whole point of caching them.
-const SHELL_CACHE_NAME = "smato-shell-v4";
+const SHELL_CACHE_NAME = "smato-shell-v5";
 const AD_CACHE_NAME = "smato-ads-v1";
 const AD_PATH_PREFIX = "/__ad-cache__/";
-const SHELL_URLS = ["/player", "/manifest.json"];
+const SHELL_URLS = ["/player", "/manifest.json", "/idle.jpg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase, setAutoScreen } from "@/lib/supabase";
+import PhoneActions from "@/components/admin/PhoneActions";
 import { STATUS_STYLES, autoStatus, batteryLabel, batteryStyle, timeAgo } from "@/lib/autoStatus";
 
 const fieldClass =
@@ -214,7 +215,7 @@ function AutoRow({ auto, onChange }) {
             placeholder="not set"
             className="w-36 rounded-md border border-line bg-ink px-2.5 py-1.5 text-sm text-text focus:border-teal focus:outline-none"
           />
-          {simChanged && (
+          {simChanged ? (
             <button
               type="button"
               onClick={saveSim}
@@ -223,6 +224,8 @@ function AutoRow({ auto, onChange }) {
             >
               {simBusy ? "Saving…" : "Save"}
             </button>
+          ) : (
+            <PhoneActions number={auto.sim_number} name={auto.auto_number} />
           )}
         </div>
         {simError && <p className="mt-1 text-xs text-red">{simError}</p>}

@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import DriverList from "@/components/drivers/DriverList";
 
 const drivers = [
@@ -32,7 +32,10 @@ const photoUrls = {
   "driver-2/photo.jpg": "https://images.example.test/anita.jpg",
 };
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("DriverList", () => {
   it("renders full driver directory details", () => {
@@ -75,5 +78,33 @@ describe("DriverList", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: "Search drivers" }), { target: { value: "not-a-driver" } });
 
     expect(screen.getByText("No drivers match your search.")).toBeInTheDocument();
+  });
+
+  it("offers call and WhatsApp links for each driver's mobile", () => {
+    render(<DriverList drivers={drivers} photoUrls={photoUrls} />);
+
+    expect(screen.getByRole("link", { name: "Call Ravi Kumar (9876543210)" })).toHaveAttribute("href", "tel:+919876543210");
+    expect(screen.getByRole("link", { name: "WhatsApp Ravi Kumar (9876543210)" })).toHaveAttribute("href", "https://wa.me/919876543210");
+  });
+
+  it("deletes a driver from the list after confirming", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const onDelete = vi.fn().mockResolvedValue();
+    render(<DriverList drivers={drivers} photoUrls={photoUrls} onDelete={onDelete} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete Anita Rao" }));
+
+    expect(window.confirm).toHaveBeenCalledWith("Delete Anita Rao? This removes their record and documents for good.");
+    await waitFor(() => expect(onDelete).toHaveBeenCalledWith(drivers[1]));
+  });
+
+  it("keeps the driver when the delete is not confirmed", () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const onDelete = vi.fn();
+    render(<DriverList drivers={drivers} photoUrls={photoUrls} onDelete={onDelete} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete Ravi Kumar" }));
+
+    expect(onDelete).not.toHaveBeenCalled();
   });
 });

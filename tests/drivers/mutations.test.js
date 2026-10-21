@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { registerDriver, saveDriver } from "@/lib/drivers/mutations";
+import { deleteDriver, registerDriver, saveDriver } from "@/lib/drivers/mutations";
 
 const values = {
   name: "  Ravi Kumar  ",
@@ -397,5 +397,26 @@ describe("saveDriver", () => {
     expect(cleanupFailure.message).toContain("driver-1/aadhaar-old.png");
     expect(api.update).toHaveBeenCalledTimes(1);
     expect(api.removeFiles).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("deleteDriver", () => {
+  it("removes the record, then its documents", async () => {
+    const { api, events } = createApi();
+
+    await deleteDriver(currentDriver(), api);
+
+    expect(events).toEqual([
+      ["remove", "driver-1"],
+      ["removeFiles", ["driver-1/photo-old.png", "driver-1/licence-old.png", "driver-1/aadhaar-old.png"]],
+    ]);
+  });
+
+  it("keeps the documents when the record can't be removed", async () => {
+    const { api } = createApi();
+    api.remove.mockRejectedValueOnce(new Error("permission denied"));
+
+    await expect(deleteDriver(currentDriver(), api)).rejects.toThrow("permission denied");
+    expect(api.removeFiles).not.toHaveBeenCalled();
   });
 });
