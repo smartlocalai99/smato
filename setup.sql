@@ -187,14 +187,15 @@ create policy "ads_bucket_delete_admin" on storage.objects for delete
     and (select auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 -- ---------------------------------------------------------------------------
--- drivers: private driver records and identity documents. File paths are
--- nullable only while a failed registration is rolled back; a record may not
--- retain a partial document set.
+-- drivers: private driver records and identity documents. Every document
+-- is optional — a driver can be registered first and their photo, licence
+-- and Aadhaar images added later from Edit, in any combination.
 -- ---------------------------------------------------------------------------
 create table if not exists drivers (
   id uuid primary key default gen_random_uuid(),
   name text not null check (length(btrim(name)) > 0),
   mobile text not null constraint drivers_mobile_key unique,
+  alt_mobile text,
   auto_number_plate text not null constraint drivers_auto_number_plate_key unique,
   driving_licence_number text not null constraint drivers_driving_licence_number_key unique,
   aadhaar_number text not null constraint drivers_aadhaar_number_key unique,
@@ -203,18 +204,19 @@ create table if not exists drivers (
   aadhaar_image_path text,
   last_paid_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint drivers_documents_complete check (
-    (photo_path is null and driving_licence_image_path is null and aadhaar_image_path is null)
-    or
-    (photo_path is not null and driving_licence_image_path is not null and aadhaar_image_path is not null)
-  )
+  updated_at timestamptz not null default now()
 );
 
 -- Safe to re-run on a project that already has `drivers` from before this
 -- column existed. Null last_paid_at just means "never paid yet" — the
 -- payment cycle then counts from created_at instead.
 alter table drivers add column if not exists last_paid_at timestamptz;
+
+-- A second, optional phone number for the driver.
+alter table drivers add column if not exists alt_mobile text;
+
+-- Documents used to be all-or-nothing; each one is optional now.
+alter table drivers drop constraint if exists drivers_documents_complete;
 
 create or replace function set_updated_at() returns trigger language plpgsql as $$
 begin new.updated_at = now(); return new; end;

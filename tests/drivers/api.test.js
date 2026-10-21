@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createDriverApi, documentPath } from "@/lib/drivers/api";
 
 const DRIVER_COLUMNS = [
-  "id", "name", "mobile", "auto_number_plate", "driving_licence_number", "aadhaar_number",
+  "id", "name", "mobile", "alt_mobile", "auto_number_plate", "driving_licence_number", "aadhaar_number",
   "photo_path", "driving_licence_image_path", "aadhaar_image_path", "last_paid_at", "created_at", "updated_at",
 ].join(",");
 
@@ -187,5 +187,33 @@ describe("driverApi", () => {
     await expect(api.removeFiles(["driver-1/photo.png"])).rejects.toBe(error);
     await expect(api.sign(["driver-1/photo.png"])).rejects.toBe(error);
     await expect(api.upsertAuto("TS09AB1234")).rejects.toBe(error);
+  });
+});
+
+describe("driverApi.listAutos", () => {
+  function clientWith(tables) {
+    return { from: (name) => ({ select: () => Promise.resolve(tables[name]) }) };
+  }
+
+  it("lists every auto in natural order with the driver already attached to it", async () => {
+    const api = createDriverApi(clientWith({
+      autos: { data: [{ auto_number: "AUTO-10" }, { auto_number: "AUTO-2" }, { auto_number: "AUTO-1" }], error: null },
+      drivers: { data: [{ id: "driver-1", name: "Ravi Kumar", auto_number_plate: "AUTO-2" }], error: null },
+    }));
+
+    await expect(api.listAutos()).resolves.toEqual([
+      { auto_number: "AUTO-1", driver: null },
+      { auto_number: "AUTO-2", driver: { id: "driver-1", name: "Ravi Kumar" } },
+      { auto_number: "AUTO-10", driver: null },
+    ]);
+  });
+
+  it("surfaces a failed lookup", async () => {
+    const api = createDriverApi(clientWith({
+      autos: { data: null, error: new Error("autos down") },
+      drivers: { data: [], error: null },
+    }));
+
+    await expect(api.listAutos()).rejects.toThrow("autos down");
   });
 });

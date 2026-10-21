@@ -7,7 +7,6 @@ export default function DocumentUpload({
   label,
   file,
   existingUrl,
-  required,
   error,
   onChange,
 }) {
@@ -46,10 +45,10 @@ export default function DocumentUpload({
         </label>
         <span
           className={`flex-none rounded-full px-2 py-0.5 text-[0.7rem] font-semibold ${
-            ready ? "bg-green/10 text-green" : "bg-amber/15 text-[#8a5a00]"
+            ready ? "bg-green/10 text-green" : "bg-panel text-text-faint"
           }`}
         >
-          {ready ? "Ready" : "Missing"}
+          {ready ? "Ready" : "Not added"}
         </span>
       </div>
       {imageUrl && (
@@ -63,7 +62,6 @@ export default function DocumentUpload({
         id={id}
         type="file"
         accept="image/jpeg,image/png,image/webp"
-        required={required}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${hintId} ${errorId}` : hintId}
         onChange={(event) => onChange(event.target.files?.[0] || null)}

@@ -122,9 +122,13 @@ export default function DriverList({ drivers = [], photoUrls = {}, onDelete }) {
                       </Link>
                     </th>
                     <td className="px-4 py-3 text-text-dim">
-                      <div className="flex items-center gap-2">
-                        <span className="whitespace-nowrap">{driver.mobile}</span>
-                        <PhoneActions number={driver.mobile} name={driver.name} />
+                      <div className="flex flex-col gap-1.5">
+                        {[driver.mobile, driver.alt_mobile].filter(Boolean).map((number) => (
+                          <div key={number} className="flex items-center gap-2">
+                            <span className="whitespace-nowrap">{number}</span>
+                            <PhoneActions number={number} name={driver.name} />
+                          </div>
+                        ))}
                       </div>
                     </td>
                     <td className="px-4 py-3 font-mono text-[0.8rem]">{driver.auto_number_plate}</td>

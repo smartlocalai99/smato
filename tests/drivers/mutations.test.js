@@ -13,6 +13,7 @@ const values = {
 const normalized = {
   name: "Ravi Kumar",
   mobile: "9876543210",
+  alt_mobile: null,
   auto_number_plate: "TS09AB1234",
   driving_licence_number: "TS0920230012345",
   aadhaar_number: "123456789012",
@@ -190,12 +191,32 @@ describe("registerDriver", () => {
     expect(api.removeFiles).toHaveBeenCalledTimes(3);
   });
 
-  it("rejects a missing required document before inserting a row", async () => {
+  it("registers a driver with no documents at all", async () => {
+    const { api, events } = createApi();
+
+    await expect(registerDriver(registrationInput({ files: {} }), api)).resolves.toEqual(currentDriver());
+
+    expect(events.map(([operation]) => operation)).toEqual(["insert", "upsertAuto"]);
+    expect(api.upload).not.toHaveBeenCalled();
+    expect(api.update).not.toHaveBeenCalled();
+  });
+
+  it("uploads and saves only the documents that were provided", async () => {
     const { api } = createApi();
-    const input = registrationInput({ files: { photo: file("photo.png"), drivingLicence: file("licence.png") } });
 
-    await expect(registerDriver(input, api)).rejects.toThrow("Aadhaar image is required.");
+    await registerDriver(registrationInput({ files: { photo: file("photo.png") } }), api);
 
+    expect(api.upload).toHaveBeenCalledTimes(1);
+    const [[photoPath]] = api.upload.mock.calls;
+    expect(api.update).toHaveBeenCalledWith("driver-1", { photo_path: photoPath });
+  });
+
+  it("still rejects an invalid document before inserting a row", async () => {
+    const { api } = createApi();
+    const pdf = new File(["x"], "aadhaar.pdf", { type: "application/pdf" });
+
+    await expect(registerDriver(registrationInput({ files: { aadhaar: pdf } }), api))
+      .rejects.toThrow("Aadhaar image must be a JPEG, PNG, or WebP image.");
     expect(api.insert).not.toHaveBeenCalled();
   });
 
@@ -280,6 +301,7 @@ describe("saveDriver", () => {
     expect(api.update).toHaveBeenNthCalledWith(2, "driver-1", {
       name: "Original Ravi",
       mobile: "9988776655",
+      alt_mobile: null,
       auto_number_plate: "TS10ZZ0001",
       driving_licence_number: "TS10202000001",
       aadhaar_number: "111122223333",

@@ -18,9 +18,27 @@ describe("driver field validation", () => {
       auto_number_plate: "ts 09 ab 1234", driving_licence_number: "ts 09 20230012345",
       aadhaar_number: "1234 5678 9012",
     })).toEqual({
-      name: "Ravi Kumar", mobile: "9876543210", auto_number_plate: "TS09AB1234",
+      name: "Ravi Kumar", mobile: "9876543210", alt_mobile: null, auto_number_plate: "TS09AB1234",
       driving_licence_number: "TS0920230012345", aadhaar_number: "123456789012",
     });
+  });
+
+  it("normalizes an optional second mobile number", () => {
+    expect(normalizeDriverFields({ alt_mobile: "+91 91234-56780" }).alt_mobile).toBe("9123456780");
+    expect(normalizeDriverFields({ alt_mobile: "091234 56780" }).alt_mobile).toBe("9123456780");
+    expect(normalizeDriverFields({ alt_mobile: "  " }).alt_mobile).toBeNull();
+  });
+
+  it("accepts an empty second mobile but rejects a malformed or duplicate one", () => {
+    const base = { name: "Ravi", mobile: "9876543210", auto_number_plate: "AUTO-01", driving_licence_number: "DL1", aadhaar_number: "123456789012" };
+    expect(validateDriverFields(base)).toEqual({});
+    expect(validateDriverFields({ ...base, alt_mobile: "12345" }).alt_mobile).toBe("Enter a valid 10-digit number, or leave it empty.");
+    expect(validateDriverFields({ ...base, alt_mobile: "98765 43210" }).alt_mobile).toBe("This is the same as the main mobile number.");
+  });
+
+  it("treats a missing document as fine — documents are optional", () => {
+    expect(validateDriverFile(null, "Photo")).toBeNull();
+    expect(validateDriverFile(undefined, "Photo")).toBeNull();
   });
 
   it("returns field-keyed errors for incomplete or malformed fields", () => {

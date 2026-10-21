@@ -194,10 +194,12 @@ export default function DriverProfilePage({ params }) {
           )}
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight">{driver.name}</h1>
-            <div className="mt-1 flex items-center gap-2">
-              <span className="text-text-dim">{driver.mobile}</span>
-              <PhoneActions number={driver.mobile} name={driver.name} />
-            </div>
+            {[driver.mobile, driver.alt_mobile].filter(Boolean).map((number) => (
+              <div key={number} className="mt-1 flex items-center gap-2">
+                <span className="text-text-dim">{number}</span>
+                <PhoneActions number={number} name={driver.name} />
+              </div>
+            ))}
           </div>
         </div>
         <div className="flex gap-2">
@@ -229,7 +231,7 @@ export default function DriverProfilePage({ params }) {
           <h2 className="mb-3 font-display text-base font-semibold">Vehicle &amp; tablet</h2>
           <dl className="mb-4 grid grid-cols-2 gap-3 text-sm">
             <div>
-              <dt className="font-mono text-[0.66rem] uppercase tracking-wide text-text-faint">Auto plate</dt>
+              <dt className="font-mono text-[0.66rem] uppercase tracking-wide text-text-faint">Auto</dt>
               <dd className="font-mono">{driver.auto_number_plate}</dd>
             </div>
             <div>

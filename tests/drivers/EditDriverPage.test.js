@@ -109,6 +109,7 @@ describe("EditDriverPage", () => {
       values: {
         name: "Ravi Kumar",
         mobile: "9876543210",
+        alt_mobile: null,
         auto_number_plate: "TS09AB1234",
         driving_licence_number: "TS0920230012345",
         aadhaar_number: "123456789012",
@@ -170,6 +171,7 @@ describe("EditDriverPage", () => {
       values: {
         name: "Ravi Edited",
         mobile: "9876543210",
+        alt_mobile: null,
         auto_number_plate: "TS09AB1234",
         driving_licence_number: "TS0920230012345",
         aadhaar_number: "123456789012",

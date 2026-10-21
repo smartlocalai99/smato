@@ -19,7 +19,7 @@ import NewDriverPage from "@/app/admin/drivers/new/page";
 const labels = {
   name: "Name",
   mobile: "Mobile number",
-  auto_number_plate: "Auto number plate",
+  auto_number_plate: "Auto number",
   driving_licence_number: "Driving Licence number",
   aadhaar_number: "Aadhaar number",
 };
@@ -84,7 +84,7 @@ describe("NewDriverPage", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("That auto already has a registered driver.");
     expect(screen.getByLabelText("Name")).toHaveValue("Ravi Kumar");
-    expect(screen.getByLabelText("Auto number plate")).toHaveValue("TS09AB1234");
+    expect(screen.getByLabelText("Auto number")).toHaveValue("TS09AB1234");
     expect(push).not.toHaveBeenCalled();
   });
 });
