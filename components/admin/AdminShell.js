@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { isAdminUser } from "@/lib/auth/admin";
 import SignIn from "@/components/admin/SignIn";
+import InstallApp from "@/components/admin/InstallApp";
 
 const AdminSessionContext = createContext(undefined);
 
@@ -122,14 +123,17 @@ export default function AdminShell({ children }) {
           <div className="flex items-center justify-between gap-3 lg:contents">
             <div className="flex items-baseline gap-2.5">
               <span className="inline-block h-2 w-2 rounded-full bg-amber shadow-[0_0_8px_var(--amber)]" />
-              <span className="font-display text-lg">smato / admin</span>
+              <span className="whitespace-nowrap font-display text-lg">smato / admin</span>
             </div>
-            <button
-              onClick={() => supabase.auth.signOut()}
-              className="rounded-md border border-line bg-transparent px-3 py-1.5 text-sm font-semibold text-text hover:border-text-faint lg:order-last lg:mt-auto lg:text-left"
-            >
-              Sign out
-            </button>
+            <div className="flex items-center gap-2 lg:order-last lg:mt-auto lg:flex-col lg:items-stretch">
+              <InstallApp />
+              <button
+                onClick={() => supabase.auth.signOut()}
+                className="whitespace-nowrap rounded-md border border-line bg-transparent px-3 py-1.5 text-sm font-semibold text-text hover:border-text-faint lg:text-left"
+              >
+                Sign out
+              </button>
+            </div>
           </div>
           <nav
             aria-label="Admin navigation"

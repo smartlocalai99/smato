@@ -13,6 +13,31 @@
   from { opacity: 0; transform: scale(0.96) translateY(4px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* Modal height cap, vh first for browsers without dvh (same reason as
+   .min-h-screen-safe below). On a phone the sheet leaves a sliver of
+   backdrop above it so it still reads as a layer you can dismiss; the body
+   keeps clear of the home indicator on notched phones. */
+.modal-sheet {
+  max-height: calc(100vh - 0.75rem);
+  max-height: calc(100dvh - 0.75rem);
+}
+.modal-sheet__body {
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+}
+@media (min-width: 640px) {
+  .modal-sheet {
+    max-height: calc(100vh - 3rem);
+    max-height: calc(100dvh - 3rem);
+  }
+  .modal-sheet__body {
+    padding-bottom: 2rem;
+  }
+}
 
 /* ---------------------------------------------------------------------------
    Tokens — dispatch-console palette. Dark, amber-lit, built for a wall of

@@ -129,7 +129,7 @@ export default function DriverForm({
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? errorId : field.key === "auto_number_plate" ? `${id}-hint` : undefined}
                 onChange={(event) => updateValue(field.key, event.target.value)}
-                className={`rounded-xl border bg-ink px-3.5 py-2.5 text-text transition-colors focus:outline-none ${
+                className={`min-h-11 w-full min-w-0 rounded-xl border bg-ink px-3.5 py-2.5 text-base text-text transition-colors focus:outline-none ${
                   error ? "border-red" : "border-line focus:border-teal"
                 }`}
               />
@@ -148,11 +148,11 @@ export default function DriverForm({
         })}
       </div>
 
-      <section className="border-t border-line pt-6" aria-labelledby="driver-documents-heading">
+      <section className="border-t border-line pt-5" aria-labelledby="driver-documents-heading">
         <h2 id="driver-documents-heading" className="mb-4 font-display text-base font-semibold">
           Documents
         </h2>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-3">
           {DOCUMENTS.map((document) => (
             <DocumentUpload
               key={document.key}
@@ -168,32 +168,12 @@ export default function DriverForm({
         </div>
       </section>
 
-      <section className="grid gap-2 border-t border-line pt-5 sm:grid-cols-3" aria-label="Document status">
-        {DOCUMENTS.map((document) => {
-          const ready = Boolean(files[document.key] || existingUrls[document.key]);
-          return (
-            <div
-              key={document.key}
-              className={`flex flex-col gap-0.5 rounded-xl border px-3 py-2 font-mono text-[0.68rem] leading-relaxed ${
-                ready
-                  ? "border-green/30 bg-green/[0.07] text-green"
-                  : "border-amber/30 bg-amber/[0.07] text-amber"
-              }`}
-            >
-              <span className="text-text-dim">{document.label}</span>
-              <strong className={ready ? "text-green" : "text-amber"}>
-                {ready ? "Ready" : "Missing"}
-              </strong>
-            </div>
-          );
-        })}
-      </section>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-2.5 border-t border-line pt-5 sm:flex-row sm:items-center sm:gap-3">
         <button
           type="submit"
           disabled={busy}
-          className="rounded-full bg-amber px-5 py-2.5 font-semibold text-on-amber transition-all hover:bg-[#ffc250] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded-full bg-amber px-5 py-3 sm:w-auto sm:py-2.5 font-semibold text-on-amber transition-all hover:bg-[#ffc250] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? "Saving…" : registration ? "Register driver" : "Save changes"}
         </button>
@@ -202,7 +182,7 @@ export default function DriverForm({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="rounded-full border border-line px-5 py-2.5 font-semibold text-text transition-all hover:border-text-faint active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-full border border-line px-5 py-3 font-semibold sm:w-auto sm:py-2.5 text-text transition-all hover:border-text-faint active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cancel
           </button>

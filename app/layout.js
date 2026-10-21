@@ -3,6 +3,10 @@ import "./globals.css";
 export const metadata = {
   title: "smato — ad screens",
   description: "Upload ads, schedule them per auto, and run them offline on the tablet.",
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export const viewport = {
@@ -10,14 +14,13 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: "#0b0f0d",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#0b0f0d" />
         <link
           rel="preconnect"
           href="https://fonts.googleapis.com"
