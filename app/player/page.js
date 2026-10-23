@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase, adFileUrl, ADS_CHANNEL_NAME } from "@/lib/supabase";
 import { adCacheUrl, getDownloadedAdIds, putAd, deleteAds } from "@/lib/adCache";
-import { adsForAuto, isAdActiveNow, hasCampaignEnded } from "@/lib/time";
+import { adsForAuto, isAdActiveNow, hasCampaignEnded, isQuietHours } from "@/lib/time";
 
 const AUTO_KEY = "smato.autoNumber";
 const LABEL_KEY = "smato.autoLabel";
@@ -195,12 +195,16 @@ function Player({ autoNumber }) {
   const [playIndex, setPlayIndex] = useState(0);
   const [hudOpen, setHudOpen] = useState(false);
   const [screenOff, setScreenOff] = useState(false);
+  // Overnight quiet hours — re-checked every minute below, offline-safe.
+  const [quietHours, setQuietHours] = useState(() => isQuietHours());
+  // Either one keeps the screen black: the admin's remote switch, or night.
+  const dark = screenOff || quietHours;
   // Read inside the retry/autoplay-recovery logic below, which runs on its
   // own timer — a plain state variable in that closure would be stale.
   const screenOffRef = useRef(false);
   useEffect(() => {
-    screenOffRef.current = screenOff;
-  }, [screenOff]);
+    screenOffRef.current = dark;
+  }, [dark]);
   const [hud, setHud] = useState({
     online: typeof navigator !== "undefined" ? navigator.onLine : true,
     lastSync: null,
@@ -500,12 +504,18 @@ function Player({ autoNumber }) {
 
   // Re-check which ads are time-active once a minute, offline-safe.
   useEffect(() => {
-    const id = setInterval(() => rebuildPlaylist(), TICK_INTERVAL_MS);
+    const id = setInterval(() => {
+      rebuildPlaylist();
+      setQuietHours(isQuietHours());
+    }, TICK_INTERVAL_MS);
     return () => clearInterval(id);
   }, [rebuildPlaylist]);
 
   // --- playback ---------------------------------------------------------------
-  const current = playlist.length ? playlist[playIndex % playlist.length] : null;
+  // During quiet hours nothing is "current" at all — no video element, no
+  // image rotation, and the admin view sees nothing playing.
+  const current =
+    !quietHours && playlist.length ? playlist[playIndex % playlist.length] : null;
 
   // Lets the admin Fleet view show what's actually on screen right now.
   useEffect(() => {
@@ -631,20 +641,20 @@ function Player({ autoNumber }) {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (screenOff) {
+    if (dark) {
       video.pause();
     } else if (current && current.mediaType !== "image") {
       video.play().catch(() => {});
     }
-  }, [screenOff, current]);
+  }, [dark, current]);
 
   useEffect(() => {
     try {
-      window.AndroidNative?.setScreenOff?.(screenOff);
+      window.AndroidNative?.setScreenOff?.(dark);
     } catch {
       // Not running inside the Android wrapper — nothing to do.
     }
-  }, [screenOff]);
+  }, [dark]);
 
   return (
     <div className="player">
@@ -667,7 +677,7 @@ function Player({ autoNumber }) {
       ) : (
         <IdleScreen />
       )}
-      {screenOff && <div className="player__blackout" aria-hidden="true" />}
+      {dark && <div className="player__blackout" aria-hidden="true" />}
       <div className="player__tap-zone" onClick={handleCornerTap} />
       {hudOpen && (
         <Hud

@@ -37,6 +37,7 @@ vi.mock("@/lib/time", () => ({
   adsForAuto: (ads) => ads,
   isAdActiveNow: () => true,
   hasCampaignEnded: () => false,
+  isQuietHours: () => false,
 }));
 
 beforeEach(() => {
