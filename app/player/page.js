@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase, adFileUrl, ADS_CHANNEL_NAME } from "@/lib/supabase";
-import { adCacheUrl, getDownloadedAdIds, putAd, deleteAds } from "@/lib/adCache";
+import { adCacheUrl, getDownloadedAdIds, putAd, deleteAds, downloadAd } from "@/lib/adCache";
 import { adsForAuto, isAdActiveNow, hasCampaignEnded, isQuietHours } from "@/lib/time";
 
 const AUTO_KEY = "smato.autoNumber";
@@ -58,10 +58,16 @@ async function readBattery() {
   return { level: null, charging: null };
 }
 // Ads sync is event-driven (Supabase Realtime fires the moment an ad is
-// added/edited/deleted), not on a timer. This interval only exists as a
-// safety net in case the realtime connection silently drops — deliberately
-// rare so it stays "sync when something actually changed," not polling.
-const SYNC_FALLBACK_INTERVAL_MS = 60 * 60 * 1000;
+// added/edited/deleted, and the tablet catches up every time its realtime
+// connection comes back), not on a timer. This interval only exists as a
+// safety net for a broadcast that never arrived — still rare enough that
+// it stays "sync when something actually changed," not polling.
+const SYNC_FALLBACK_INTERVAL_MS = 15 * 60 * 1000;
+// After a sync that didn't fully finish (a download cut off, the schedule
+// fetch failing), try again on its own, backing off so a tablet stuck on a
+// bad signal doesn't keep spending the free bandwidth allowance.
+const SYNC_RETRY_MIN_MS = 2 * 60 * 1000;
+const SYNC_RETRY_MAX_MS = 30 * 60 * 1000;
 const SW_UPDATE_CHECK_INTERVAL_MS = 3 * 60 * 1000;
 const TICK_INTERVAL_MS = 60 * 1000;
 // Both throttle how often a tablet writes to the database, not how often it
@@ -84,6 +90,19 @@ export default function PlayerPage() {
   if (autoNumber === null) return null;
   if (!autoNumber) return <SetupScreen onSaved={setAutoNumber} />;
   return <Player autoNumber={autoNumber} />;
+}
+
+function samePlaylist(a, b) {
+  return (
+    a.length === b.length &&
+    a.every(
+      (item, i) =>
+        item.id === b[i].id &&
+        item.title === b[i].title &&
+        item.sortOrder === b[i].sortOrder &&
+        item.mediaType === b[i].mediaType
+    )
+  );
 }
 
 // AUTO-01, AUTO-02, ... — the next unused number in that sequence, so
@@ -205,6 +224,10 @@ function Player({ autoNumber }) {
   useEffect(() => {
     screenOffRef.current = dark;
   }, [dark]);
+  // What's on screen, read by the heartbeat's own timer — so the admin view
+  // corrects itself within one heartbeat even if a "now playing" write was
+  // missed (say, the tablet was offline the moment quiet hours began).
+  const nowPlayingRef = useRef(null);
   const [hud, setHud] = useState({
     online: typeof navigator !== "undefined" ? navigator.onLine : true,
     lastSync: null,
@@ -307,6 +330,7 @@ function Player({ autoNumber }) {
             last_seen_at: new Date().toISOString(),
             battery_level: battery.level,
             battery_charging: battery.charging,
+            now_playing_title: nowPlayingRef.current,
           },
           { onConflict: "auto_number" }
         );
@@ -377,41 +401,92 @@ function Player({ autoNumber }) {
   }, [autoNumber]);
 
   // --- sync: fetch schedule, download new videos, only then drop stale ones --
-  const sync = useCallback(async () => {
-    if (!navigator.onLine) return;
+  // Only one pass ever runs at a time. The realtime nudge, the reconnect
+  // catch-up and the online event can all land together, and two passes
+  // overlapping would each download the same new video. A request that
+  // arrives mid-pass queues exactly one more pass for when it finishes.
+  const syncingRef = useRef(false);
+  const syncAgainRef = useRef(false);
+  const retryTimerRef = useRef(null);
+  const retryDelayRef = useRef(SYNC_RETRY_MIN_MS);
+
+  // One pass. Resolves true once everything this tablet needs is on disk.
+  const syncPass = useCallback(async () => {
     try {
+      // Paused ads come back too: their files stay on the tablet (below),
+      // so resuming one doesn't mean every tablet downloads it all again.
       const { data: ads, error } = await supabase
         .from("ads")
         .select("*")
-        .eq("active", true)
         .or(`auto_number.eq.${autoNumber},auto_number.is.null`);
       if (error) throw error;
       saveAdsSnapshot(ads || []);
 
+      // Pauses, deletions and reorders apply right away, not after however
+      // long the downloads below take on a weak signal.
       const relevant = adsForAuto(ads || [], autoNumber);
+      await rebuildPlaylist(relevant);
+
       const existingIds = new Set(await getDownloadedAdIds());
-      // Ads whose campaign has already ended aren't worth keeping on disk —
-      // pausing, deleting, or letting the end date pass all clear the
-      // tablet's local copy the same way, not just its spot in rotation.
+      // Deleted ads and ads whose campaign has already ended aren't worth
+      // keeping on disk. A paused ad's file is kept — out of rotation, but
+      // ready the moment it's resumed.
       const notExpired = relevant.filter((ad) => !hasCampaignEnded(ad));
       const wantedIds = new Set(notExpired.map((a) => a.id));
 
+      let failed = 0;
       for (const ad of notExpired) {
-        if (existingIds.has(ad.id)) continue;
-        const res = await fetch(adFileUrl(ad.file_path));
-        if (!res.ok) continue;
-        await putAd(ad.id, res);
+        if (!ad.active || existingIds.has(ad.id)) continue;
+        try {
+          await putAd(ad.id, await downloadAd(adFileUrl(ad.file_path)));
+        } catch {
+          // One bad download doesn't hold up the rest — retried later.
+          failed += 1;
+        }
       }
 
       const staleIds = [...existingIds].filter((id) => !wantedIds.has(id));
       if (staleIds.length) await deleteAds(staleIds);
 
-      setHud((h) => ({ ...h, lastSync: new Date(), syncError: null }));
       await rebuildPlaylist(relevant);
+      setHud((h) => ({
+        ...h,
+        lastSync: new Date(),
+        syncError: failed ? `${failed} download(s) didn't finish, retrying` : null,
+      }));
+      return failed === 0;
     } catch (err) {
       setHud((h) => ({ ...h, syncError: err.message || "sync failed" }));
+      return false;
     }
   }, [autoNumber]);
+
+  const sync = useCallback(async () => {
+    if (!navigator.onLine) return;
+    if (syncingRef.current) {
+      syncAgainRef.current = true;
+      return;
+    }
+    syncingRef.current = true;
+    clearTimeout(retryTimerRef.current);
+    let ok = false;
+    try {
+      do {
+        syncAgainRef.current = false;
+        ok = await syncPass();
+      } while (syncAgainRef.current);
+    } finally {
+      syncingRef.current = false;
+    }
+
+    if (ok) {
+      retryDelayRef.current = SYNC_RETRY_MIN_MS;
+      return;
+    }
+    const delay = retryDelayRef.current;
+    retryDelayRef.current = Math.min(delay * 2, SYNC_RETRY_MAX_MS);
+    retryTimerRef.current = setTimeout(sync, delay);
+  }, [syncPass]);
 
   // Rebuild the local playlist from whatever is actually downloaded right
   // now, filtered to ads that are active. Each item's URL is just
@@ -419,26 +494,16 @@ function Player({ autoNumber }) {
   // by the service worker straight from Cache Storage, not a blob: URL, so
   // there's no per-rebuild churn to worry about and no revoke-while-playing
   // race to get wrong.
+  //
+  // Never touches the network: with no fresh schedule passed in, it uses
+  // the copy saved by the last successful sync. The once-a-minute tick only
+  // needs the tablet's own clock checked against that — asking the server
+  // every minute, from every tablet, spent the free plan's bandwidth on a
+  // schedule that only changes when someone edits it in the admin.
   const rebuildPlaylist = useCallback(
     async (adsHint) => {
       const downloadedIds = new Set(await getDownloadedAdIds());
-
-      let scheduleAds = adsHint;
-      if (!scheduleAds) {
-        try {
-          const { data, error } = await supabase
-            .from("ads")
-            .select("*")
-            .eq("active", true)
-            .or(`auto_number.eq.${autoNumber},auto_number.is.null`);
-          if (error) throw error;
-          scheduleAds = adsForAuto(data || [], autoNumber);
-        } catch {
-          // Offline with nothing passed in — fall back to the schedule as
-          // of the last successful sync instead of coming up empty.
-          scheduleAds = adsForAuto(loadAdsSnapshot(), autoNumber);
-        }
-      }
+      const scheduleAds = adsHint || adsForAuto(loadAdsSnapshot(), autoNumber);
 
       const now = new Date();
       const active = scheduleAds
@@ -453,7 +518,11 @@ function Player({ autoNumber }) {
         mediaType: ad.media_type || "video",
       }));
 
-      setPlaylist(next);
+      // Nothing changed → keep the very same array. A fresh copy every
+      // minute made the ad on screen look "new" each time: an image's
+      // 2-minute timer restarted before it could ever finish (so it never
+      // moved on), and a video lost its stall-recovery listeners.
+      setPlaylist((prev) => (samePlaylist(prev, next) ? prev : next));
       setPlayIndex((i) => (next.length ? i % next.length : 0));
       setHud((h) => ({ ...h, downloadedCount: downloadedIds.size, now }));
     },
@@ -465,7 +534,10 @@ function Player({ autoNumber }) {
     rebuildPlaylist();
     sync();
     const syncId = setInterval(sync, SYNC_FALLBACK_INTERVAL_MS);
-    return () => clearInterval(syncId);
+    return () => {
+      clearInterval(syncId);
+      clearTimeout(retryTimerRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -474,6 +546,25 @@ function Player({ autoNumber }) {
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
   }, [sync]);
+
+  // Picks up a blackout that was set while this tablet was offline — the
+  // broadcast below only reaches a tablet that's already connected when it
+  // fires, so this is the catch-up path for "was it off before I rebooted?"
+  // (and for "did I miss one while my connection was down?", see below).
+  const refreshScreenOff = useCallback(() => {
+    supabase
+      .from("autos")
+      .select("screen_off")
+      .eq("auto_number", autoNumber)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!error) setScreenOff(Boolean(data?.screen_off));
+      });
+  }, [autoNumber]);
+
+  useEffect(() => {
+    refreshScreenOff();
+  }, [refreshScreenOff]);
 
   // The real trigger: sync the moment admin submits an ad (add/edit/pause/
   // delete), instead of waiting on a timer. Plain Realtime Broadcast, not
@@ -486,21 +577,16 @@ function Player({ autoNumber }) {
       .on("broadcast", { event: "screen" }, ({ payload }) => {
         if (payload?.auto_number === autoNumber) setScreenOff(Boolean(payload.screen_off));
       })
-      .subscribe();
+      .subscribe((status) => {
+        // Fires on the first join and again every time the connection comes
+        // back after dropping — which in a moving auto is all day. Broadcasts
+        // sent while it was down never arrive, so catch up on both here.
+        if (status !== "SUBSCRIBED") return;
+        sync();
+        refreshScreenOff();
+      });
     return () => supabase.removeChannel(channel);
-  }, [sync, autoNumber]);
-
-  // Picks up a blackout that was set while this tablet was offline — the
-  // broadcast above only reaches a tablet that's already connected when it
-  // fires, so this is the catch-up path for "was it off before I rebooted?".
-  useEffect(() => {
-    supabase
-      .from("autos")
-      .select("screen_off")
-      .eq("auto_number", autoNumber)
-      .maybeSingle()
-      .then(({ data }) => setScreenOff(Boolean(data?.screen_off)));
-  }, [autoNumber]);
+  }, [sync, autoNumber, refreshScreenOff]);
 
   // Re-check which ads are time-active once a minute, offline-safe.
   useEffect(() => {
@@ -519,6 +605,7 @@ function Player({ autoNumber }) {
 
   // Lets the admin Fleet view show what's actually on screen right now.
   useEffect(() => {
+    nowPlayingRef.current = current ? current.title : null;
     if (!navigator.onLine) return;
     supabase
       .from("autos")

@@ -70,12 +70,23 @@ function Console() {
       .subscribe();
 
     // Fallback poll in case realtime isn't enabled on the project — keeps
-    // the fleet view live either way.
-    const poll = setInterval(loadAutos, 15000);
+    // the fleet view live either way. Once a minute is plenty (tablets only
+    // check in every few minutes), and never while the page is in the
+    // background — a dashboard left open on a phone or a spare laptop
+    // shouldn't quietly use up the free plan's bandwidth. Coming back to it
+    // refreshes straight away.
+    const poll = setInterval(() => {
+      if (document.visibilityState === "visible") loadAutos();
+    }, 60000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadAutos();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       supabase.removeChannel(channel);
       clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [loadAutos, loadDrivers, loadAds]);
 

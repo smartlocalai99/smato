@@ -5,7 +5,13 @@
 //     player page (lib/adCache.js) — this worker only *serves* them, never
 //     wipes them. Ads survive an app update; re-downloading a video every
 //     time this file changes would defeat the whole point of caching them.
-const SHELL_CACHE_NAME = "smato-shell-v6";
+//
+// Bump the shell version with every deploy that changes the player. A
+// tablet that's already running only notices a new deploy when this file
+// changes — that's what triggers its one-time reload onto the new build
+// (the controllerchange listener in app/player/page.js). Otherwise it
+// keeps running the old code until it next restarts.
+const SHELL_CACHE_NAME = "smato-shell-v7";
 const AD_CACHE_NAME = "smato-ads-v1";
 const AD_PATH_PREFIX = "/__ad-cache__/";
 const SHELL_URLS = ["/player", "/idle.jpg"];

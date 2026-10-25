@@ -31,6 +31,7 @@ vi.mock("@/lib/adCache", () => ({
   getDownloadedAdIds: () => Promise.resolve([]),
   putAd: vi.fn(),
   deleteAds: vi.fn(),
+  downloadAd: vi.fn(),
 }));
 
 vi.mock("@/lib/time", () => ({
