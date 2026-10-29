@@ -11,9 +11,13 @@ export default function NewDriverPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [autos, setAutos] = useState([]);
+  // "Add driver" on an auto's card (Autos page) links here with ?auto=…,
+  // so that auto comes already picked.
+  const [prefillAuto, setPrefillAuto] = useState("");
 
   useEffect(() => {
     driverApi.listAutos().then(setAutos).catch(() => {});
+    setPrefillAuto(new URLSearchParams(window.location.search).get("auto") || "");
   }, []);
 
   async function handleRegister(payload) {
@@ -36,8 +40,11 @@ export default function NewDriverPage() {
         <p className="mt-1 text-text-dim">Add their contact details and the auto they drive. Documents are optional.</p>
       </header>
       <DriverForm
+        // The form reads its initial values once, so a prefill that arrives
+        // after the first render starts it afresh.
+        key={prefillAuto}
         mode="register"
-        initialValues={{}}
+        initialValues={prefillAuto ? { auto_number_plate: prefillAuto } : {}}
         existingUrls={{}}
         onSubmit={handleRegister}
         busy={busy}

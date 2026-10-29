@@ -1,26 +1,42 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { supabase, setAutoScreen, renumberAuto } from "@/lib/supabase";
-import PhoneActions from "@/components/admin/PhoneActions";
-import { STATUS_STYLES, autoStatus, batteryLabel, batteryStyle, timeAgo } from "@/lib/autoStatus";
+import { supabase } from "@/lib/supabase";
+import AutoCard from "@/components/admin/AutoCard";
 
 const fieldClass =
-  "rounded-md border border-line bg-ink px-3 py-2.5 text-text focus:border-teal focus:outline-none";
+  "rounded-md border border-line bg-ink px-3 py-2.5 text-base text-text focus:border-teal focus:outline-none sm:text-sm";
 const labelClass = "font-mono text-xs tracking-wide text-text-dim";
+
+// Drivers are linked to an auto by the number picked on their form, stored
+// the same way: no spaces, upper case.
+function autoKey(value) {
+  return String(value || "").replace(/\s/g, "").toUpperCase();
+}
 
 export default function AutosPage() {
   const [autos, setAutos] = useState([]);
+  const [drivers, setDrivers] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Only the first load shows "Loading autos…". Reloading after an action
+  // keeps the cards where they are, so a phone doesn't jump back to the top.
   const load = useCallback(async () => {
-    setLoading(true);
     setError("");
     try {
-      const { data, error: fetchError } = await supabase.from("autos").select("*").order("auto_number");
-      if (fetchError) throw fetchError;
-      setAutos(data || []);
+      const [autosResult, driversResult] = await Promise.all([
+        supabase.from("autos").select("*").order("auto_number"),
+        supabase.from("drivers").select("id,name,mobile,auto_number_plate"),
+      ]);
+      if (autosResult.error) throw autosResult.error;
+      setAutos(autosResult.data || []);
+      // A failed driver lookup only leaves the driver lines empty.
+      if (!driversResult.error) {
+        setDrivers(
+          Object.fromEntries((driversResult.data || []).map((d) => [autoKey(d.auto_number_plate), d]))
+        );
+      }
     } catch (err) {
       setError(err.message || "Couldn't load autos.");
     } finally {
@@ -33,11 +49,11 @@ export default function AutosPage() {
   }, [load]);
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-10">
-      <header className="mb-6">
+    <main className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
+      <header className="mb-5 sm:mb-6">
         <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Autos</h1>
         <p className="mt-1 max-w-xl text-text-dim">
-          Every tablet in the fleet, its SIM number, and its live status.
+          Every tablet in the fleet: who drives it, its SIM number, and its live status.
         </p>
       </header>
 
@@ -45,37 +61,39 @@ export default function AutosPage() {
 
       {loading ? (
         <p className="mt-6 text-sm text-text-dim" role="status">Loading autos…</p>
-      ) : error ? (
+      ) : error && !autos.length ? (
         <div className="mt-6 rounded-2xl border border-red/25 bg-red/[0.06] p-6 text-center" role="alert">
           <p className="text-red">{error}</p>
           <button
             type="button"
             onClick={load}
-            className="mt-3 rounded-full border border-line px-4 py-2 text-sm font-semibold hover:border-text-faint"
+            className="mt-3 min-h-11 rounded-full border border-line px-4 text-sm font-semibold hover:border-text-faint"
           >
             Try again
           </button>
         </div>
       ) : autos.length ? (
-        <div className="mt-6 overflow-x-auto rounded-2xl border border-line">
-          <table className="w-full min-w-[40rem] border-collapse text-sm">
-            <thead>
-              <tr className="bg-panel-2 text-left font-mono text-[0.66rem] uppercase tracking-wide text-text-faint">
-                <th scope="col" className="px-4 py-3 font-medium">Auto</th>
-                <th scope="col" className="px-4 py-3 font-medium">SIM number</th>
-                <th scope="col" className="px-4 py-3 font-medium">Status</th>
-                <th scope="col" className="px-4 py-3 font-medium">Battery</th>
-                <th scope="col" className="px-4 py-3 font-medium">Last seen</th>
-                <th scope="col" className="px-4 py-3" aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {autos.map((auto) => (
-                <AutoRow key={auto.id} auto={auto} autos={autos} onChange={load} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {error && (
+            <p className="mt-6 text-sm text-red" role="alert">
+              {error}
+            </p>
+          )}
+          {/* grid-cols-1 rather than a bare grid: its column can shrink below
+              the cards' content, so a long driver name truncates instead of
+              pushing the card past the edge of a phone screen. */}
+          <ul className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2" aria-label="Tablets">
+            {autos.map((auto) => (
+              <AutoCard
+                key={auto.id}
+                auto={auto}
+                autos={autos}
+                driver={drivers[autoKey(auto.auto_number)]}
+                onChange={load}
+              />
+            ))}
+          </ul>
+        </>
       ) : (
         <p className="mt-6 rounded-2xl border border-dashed border-line p-10 text-center text-text-dim">
           No autos yet — add one above, or open the player link on a tablet.
@@ -115,204 +133,58 @@ function AddAutoForm({ onAdded }) {
     }
   }
 
+  // Folded away by default: tablets add themselves the first time they open
+  // the player, so the list — not this form — is what a phone shows first.
   return (
-    <form onSubmit={handleSubmit} className="rounded-2xl border border-line bg-panel p-5 sm:p-6">
-      <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto]">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="newAutoNumber" className={labelClass}>Auto number</label>
-          <input
-            id="newAutoNumber"
-            value={autoNumber}
-            onChange={(e) => setAutoNumberValue(e.target.value)}
-            placeholder="AUTO-06"
-            className={fieldClass}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="newSimNumber" className={labelClass}>SIM number (optional)</label>
-          <input
-            id="newSimNumber"
-            value={simNumber}
-            onChange={(e) => setSimNumber(e.target.value)}
-            placeholder="98765 43210"
-            className={fieldClass}
-          />
-        </div>
-        <div className="flex items-end">
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-full bg-amber px-5 py-2.5 font-semibold text-on-amber transition-all hover:bg-[#ffc250] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-          >
-            {busy ? "Adding…" : "Add auto"}
-          </button>
-        </div>
-      </div>
-      {error && <p className="mt-3 text-sm text-red" role="alert">{error}</p>}
-    </form>
-  );
-}
-
-function AutoRow({ auto, autos, onChange }) {
-  const [simNumber, setSimNumber] = useState(auto.sim_number || "");
-  const [simBusy, setSimBusy] = useState(false);
-  const [simError, setSimError] = useState("");
-  const [screenBusy, setScreenBusy] = useState(false);
-  const [deleteBusy, setDeleteBusy] = useState(false);
-  const [renumberBusy, setRenumberBusy] = useState(false);
-
-  const s = autoStatus(auto);
-  const styles = STATUS_STYLES[s];
-  const simChanged = simNumber.trim() !== (auto.sim_number || "");
-
-  async function saveSim() {
-    setSimBusy(true);
-    setSimError("");
-    try {
-      const { error } = await supabase
-        .from("autos")
-        .update({ sim_number: simNumber.trim() || null })
-        .eq("id", auto.id);
-      if (error) throw error;
-      onChange();
-    } catch (err) {
-      setSimError(err.message || "Couldn't save that SIM number.");
-    } finally {
-      setSimBusy(false);
-    }
-  }
-
-  async function toggleScreen() {
-    setScreenBusy(true);
-    try {
-      await setAutoScreen(auto.auto_number, !auto.screen_off);
-      onChange();
-    } finally {
-      setScreenBusy(false);
-    }
-  }
-
-  // For a tablet set up with the wrong number (or moved to another auto).
-  // Only ever from here — the tablet itself has no way to change it.
-  async function handleRenumber() {
-    const input = prompt(
-      `Which auto is the tablet now reporting as ${auto.auto_number} really in?`,
-      auto.renumber_to || ""
-    );
-    if (input === null) return;
-    const to = input.trim().toUpperCase();
-    if (!to || to === auto.auto_number) return;
-
-    const target = autos.find((a) => a.auto_number === to);
-    if (
-      target &&
-      autoStatus(target) === "online" &&
-      !confirm(`${to} already has a tablet online. Move this one to ${to} too?`)
-    ) {
-      return;
-    }
-
-    setRenumberBusy(true);
-    try {
-      await renumberAuto(auto.auto_number, to);
-      onChange();
-    } catch (err) {
-      alert(
-        /renumber_to/.test(err.message || "")
-          ? "The database needs a one-time update first: in Supabase → SQL Editor, run\n\nalter table autos add column if not exists renumber_to text;"
-          : err.message || "Couldn't change that tablet's number."
-      );
-    } finally {
-      setRenumberBusy(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (!confirm(`Delete ${auto.auto_number}? This removes it from the fleet for good.`)) return;
-    setDeleteBusy(true);
-    try {
-      const { error } = await supabase.from("autos").delete().eq("id", auto.id);
-      if (error) throw error;
-      onChange();
-    } catch (err) {
-      setDeleteBusy(false);
-      alert(err.message || "Couldn't delete that auto.");
-    }
-  }
-
-  return (
-    <tr className="border-t border-line align-top">
-      <td className="px-4 py-3 font-mono font-semibold">
-        {auto.auto_number}
-        {auto.renumber_to && (
-          <p className="mt-1 text-xs font-normal text-amber">
-            moving to {auto.renumber_to} — when the tablet is next online
-          </p>
-        )}
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            value={simNumber}
-            onChange={(e) => setSimNumber(e.target.value)}
-            placeholder="not set"
-            className="w-36 rounded-md border border-line bg-ink px-2.5 py-1.5 text-sm text-text focus:border-teal focus:outline-none"
-          />
-          {simChanged ? (
+    <details className="group rounded-2xl border border-line bg-panel">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 font-semibold sm:px-6 [&::-webkit-details-marker]:hidden">
+        Add an auto
+        <svg
+          viewBox="0 0 20 20"
+          className="h-5 w-5 flex-none text-text-faint transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </summary>
+      <form onSubmit={handleSubmit} className="border-t border-line p-4 sm:p-6">
+        <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto]">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="newAutoNumber" className={labelClass}>Auto number</label>
+            <input
+              id="newAutoNumber"
+              value={autoNumber}
+              onChange={(e) => setAutoNumberValue(e.target.value)}
+              placeholder="AUTO-12"
+              autoCapitalize="characters"
+              className={fieldClass}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="newSimNumber" className={labelClass}>SIM number (optional)</label>
+            <input
+              id="newSimNumber"
+              type="tel"
+              inputMode="tel"
+              value={simNumber}
+              onChange={(e) => setSimNumber(e.target.value)}
+              placeholder="98765 43210"
+              className={fieldClass}
+            />
+          </div>
+          <div className="flex items-end">
             <button
-              type="button"
-              onClick={saveSim}
-              disabled={simBusy}
-              className="whitespace-nowrap rounded-md border border-line bg-panel-2 px-2.5 py-1.5 text-xs font-semibold hover:border-text-faint disabled:cursor-not-allowed disabled:opacity-50"
+              type="submit"
+              disabled={busy}
+              className="min-h-11 w-full rounded-full bg-amber px-5 font-semibold text-on-amber transition-all hover:bg-[#ffc250] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
-              {simBusy ? "Saving…" : "Save"}
+              {busy ? "Adding…" : "Add auto"}
             </button>
-          ) : (
-            <PhoneActions number={auto.sim_number} name={auto.auto_number} />
-          )}
+          </div>
         </div>
-        {simError && <p className="mt-1 text-xs text-red">{simError}</p>}
-      </td>
-      <td className="px-4 py-3">
-        <span className="inline-flex items-center gap-1.5">
-          <span className={`h-2 w-2 flex-none rounded-full ${styles.dot}`} />
-          <span className={`font-mono text-xs uppercase tracking-wide ${styles.text}`}>{s}</span>
-        </span>
-      </td>
-      <td className="px-4 py-3">
-        <span className={`font-mono text-xs ${batteryStyle(auto.battery_level, auto.battery_charging)}`}>
-          {batteryLabel(auto.battery_level, auto.battery_charging)}
-        </span>
-      </td>
-      <td className="px-4 py-3 text-text-dim">{timeAgo(auto.last_seen_at)}</td>
-      <td className="px-4 py-3 text-right">
-        <div className="flex flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            onClick={toggleScreen}
-            disabled={screenBusy}
-            className="whitespace-nowrap rounded-full border border-line px-3 py-1.5 text-xs font-semibold hover:border-text-faint disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {screenBusy ? "…" : auto.screen_off ? "Turn on" : "Turn off"}
-          </button>
-          <button
-            type="button"
-            onClick={handleRenumber}
-            disabled={renumberBusy}
-            className="whitespace-nowrap rounded-full border border-line px-3 py-1.5 text-xs font-semibold hover:border-text-faint disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {renumberBusy ? "…" : "Change number"}
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={deleteBusy}
-            className="whitespace-nowrap rounded-full border border-red/35 px-3 py-1.5 text-xs font-semibold text-red hover:border-red disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {deleteBusy ? "…" : "Delete"}
-          </button>
-        </div>
-      </td>
-    </tr>
+        {error && <p className="mt-3 text-sm text-red" role="alert">{error}</p>}
+      </form>
+    </details>
   );
 }

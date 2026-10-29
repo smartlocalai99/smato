@@ -75,6 +75,14 @@ describe("NewDriverPage", () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith("/admin/drivers?created=1"));
   });
 
+  it("starts with the auto already picked when opened from an auto's card", async () => {
+    window.history.pushState({}, "", "/admin/drivers/new?auto=AUTO-05");
+    render(<NewDriverPage />);
+
+    await waitFor(() => expect(screen.getByLabelText("Auto number")).toHaveValue("AUTO-05"));
+    window.history.pushState({}, "", "/");
+  });
+
   it("shows a rejected registration message without clearing entered form values", async () => {
     registerDriver.mockRejectedValue(new Error("That auto already has a registered driver."));
     render(<NewDriverPage />);
