@@ -81,6 +81,9 @@ export const dynamic = "force-dynamic";
 
 export default function PlayerPage() {
   const [autoNumber, setAutoNumber] = useState(null);
+  // Reopened from the debug HUD, for a tablet set up with the wrong number
+  // or moved to a different auto.
+  const [changingAuto, setChangingAuto] = useState(false);
 
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem(AUTO_KEY) : null;
@@ -88,8 +91,19 @@ export default function PlayerPage() {
   }, []);
 
   if (autoNumber === null) return null;
-  if (!autoNumber) return <SetupScreen onSaved={setAutoNumber} />;
-  return <Player autoNumber={autoNumber} />;
+  if (!autoNumber || changingAuto) {
+    return (
+      <SetupScreen
+        current={autoNumber}
+        onSaved={(number) => {
+          setAutoNumber(number);
+          setChangingAuto(false);
+        }}
+        onCancel={autoNumber ? () => setChangingAuto(false) : null}
+      />
+    );
+  }
+  return <Player key={autoNumber} autoNumber={autoNumber} onChangeAuto={() => setChangingAuto(true)} />;
 }
 
 function samePlaylist(a, b) {
@@ -131,10 +145,12 @@ function notifyNativeTouch(enabled) {
   }
 }
 
-function SetupScreen({ onSaved }) {
-  const [value, setValue] = useState("");
-  const [label, setLabel] = useState("");
-  const touchedRef = useRef(false);
+// `current` is set when changing an already set-up tablet's number: the
+// form starts from it instead of suggesting the next free one.
+function SetupScreen({ current = "", onSaved, onCancel }) {
+  const [value, setValue] = useState(current);
+  const [label, setLabel] = useState(() => (current && localStorage.getItem(LABEL_KEY)) || "");
+  const touchedRef = useRef(Boolean(current));
 
   // The setup form needs real taps — make sure touch isn't left blocked
   // from some earlier state (shouldn't happen, but cheap to be sure).
@@ -157,6 +173,10 @@ function SetupScreen({ onSaved }) {
     if (!number) return;
     localStorage.setItem(AUTO_KEY, number);
     if (label.trim()) localStorage.setItem(LABEL_KEY, label.trim());
+    else localStorage.removeItem(LABEL_KEY);
+    // The saved schedule belongs to the old number — start this one clean.
+    // Its first sync downloads the new auto's ads and clears the old ones.
+    if (current && number !== current) localStorage.removeItem(ADS_SNAPSHOT_KEY);
     onSaved(number);
   }
 
@@ -165,7 +185,7 @@ function SetupScreen({ onSaved }) {
       <form className="setup-card" onSubmit={handleSubmit}>
         <div>
           <span className="landing__mark">smato · player setup</span>
-          <h1 className="signin__title">Which auto is this?</h1>
+          <h1 className="signin__title">{current ? "Change this tablet's auto" : "Which auto is this?"}</h1>
         </div>
         <div className="field">
           <label htmlFor="autoNumber">Auto number</label>
@@ -192,13 +212,22 @@ function SetupScreen({ onSaved }) {
         <button className="btn btn--primary" type="submit">
           Save & start playing
         </button>
-        <p className="upload-status">Saved permanently on this tablet. You won&apos;t see this screen again.</p>
+        {onCancel && (
+          <button className="btn btn--ghost" type="button" onClick={onCancel}>
+            Cancel, keep {current}
+          </button>
+        )}
+        <p className="upload-status">
+          {current
+            ? "Ads for the new auto download as soon as the tablet is online."
+            : "Saved permanently on this tablet. You can change it later from the 5-tap corner panel."}
+        </p>
       </form>
     </div>
   );
 }
 
-function Player({ autoNumber }) {
+function Player({ autoNumber, onChangeAuto }) {
   // Lock only after setup has handed over to the content screen. This also
   // runs when a saved auto is restored, even before ads or the network load.
   useEffect(() => {
@@ -773,6 +802,7 @@ function Player({ autoNumber }) {
           current={current}
           playlistLength={playlist.length}
           onClose={() => setHudOpen(false)}
+          onChangeAuto={onChangeAuto}
         />
       )}
     </div>
@@ -787,7 +817,7 @@ function IdleScreen() {
   return <img className="player__idle" src="/idle.jpg" alt="" />;
 }
 
-function Hud({ autoNumber, hud, current, playlistLength, onClose }) {
+function Hud({ autoNumber, hud, current, playlistLength, onClose, onChangeAuto }) {
   return (
     <div className="hud">
       <div className="hud__title">
@@ -856,6 +886,9 @@ function Hud({ autoNumber, hud, current, playlistLength, onClose }) {
           <span>{JSON.stringify(hud.probe)}</span>
         </div>
       )}
+      <button className="btn hud__action" onClick={onChangeAuto}>
+        Change auto number
+      </button>
     </div>
   );
 }
