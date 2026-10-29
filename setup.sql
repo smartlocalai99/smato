@@ -37,6 +37,9 @@ alter table autos add constraint autos_battery_level_check check (battery_level 
 alter table autos add column if not exists battery_charging boolean;
 alter table autos add column if not exists screen_off boolean not null default false;
 alter table autos add column if not exists sim_number text;
+-- Set from the admin's Autos page to move the tablet reporting as this
+-- number over to another one; the tablet clears it once it has moved.
+alter table autos add column if not exists renumber_to text;
 drop index if exists autos_sim_number_idx;
 alter table autos drop constraint if exists autos_sim_number_key;
 alter table autos add constraint autos_sim_number_key unique (sim_number);

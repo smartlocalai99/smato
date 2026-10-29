@@ -11,7 +11,7 @@
 // changes — that's what triggers its one-time reload onto the new build
 // (the controllerchange listener in app/player/page.js). Otherwise it
 // keeps running the old code until it next restarts.
-const SHELL_CACHE_NAME = "smato-shell-v8";
+const SHELL_CACHE_NAME = "smato-shell-v9";
 const AD_CACHE_NAME = "smato-ads-v1";
 const AD_PATH_PREFIX = "/__ad-cache__/";
 const SHELL_URLS = ["/player", "/idle.jpg"];

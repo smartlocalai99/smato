@@ -403,8 +403,4 @@ h3 {
   cursor: pointer;
   font-family: var(--font-mono);
 }
-.hud__action {
-  width: 100%;
-  margin-top: 0.8rem;
-}
 

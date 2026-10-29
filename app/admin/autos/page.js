@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { supabase, setAutoScreen } from "@/lib/supabase";
+import { supabase, setAutoScreen, renumberAuto } from "@/lib/supabase";
 import PhoneActions from "@/components/admin/PhoneActions";
 import { STATUS_STYLES, autoStatus, batteryLabel, batteryStyle, timeAgo } from "@/lib/autoStatus";
 
@@ -71,7 +71,7 @@ export default function AutosPage() {
             </thead>
             <tbody>
               {autos.map((auto) => (
-                <AutoRow key={auto.id} auto={auto} onChange={load} />
+                <AutoRow key={auto.id} auto={auto} autos={autos} onChange={load} />
               ))}
             </tbody>
           </table>
@@ -153,12 +153,13 @@ function AddAutoForm({ onAdded }) {
   );
 }
 
-function AutoRow({ auto, onChange }) {
+function AutoRow({ auto, autos, onChange }) {
   const [simNumber, setSimNumber] = useState(auto.sim_number || "");
   const [simBusy, setSimBusy] = useState(false);
   const [simError, setSimError] = useState("");
   const [screenBusy, setScreenBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [renumberBusy, setRenumberBusy] = useState(false);
 
   const s = autoStatus(auto);
   const styles = STATUS_STYLES[s];
@@ -191,6 +192,41 @@ function AutoRow({ auto, onChange }) {
     }
   }
 
+  // For a tablet set up with the wrong number (or moved to another auto).
+  // Only ever from here — the tablet itself has no way to change it.
+  async function handleRenumber() {
+    const input = prompt(
+      `Which auto is the tablet now reporting as ${auto.auto_number} really in?`,
+      auto.renumber_to || ""
+    );
+    if (input === null) return;
+    const to = input.trim().toUpperCase();
+    if (!to || to === auto.auto_number) return;
+
+    const target = autos.find((a) => a.auto_number === to);
+    if (
+      target &&
+      autoStatus(target) === "online" &&
+      !confirm(`${to} already has a tablet online. Move this one to ${to} too?`)
+    ) {
+      return;
+    }
+
+    setRenumberBusy(true);
+    try {
+      await renumberAuto(auto.auto_number, to);
+      onChange();
+    } catch (err) {
+      alert(
+        /renumber_to/.test(err.message || "")
+          ? "The database needs a one-time update first: in Supabase → SQL Editor, run\n\nalter table autos add column if not exists renumber_to text;"
+          : err.message || "Couldn't change that tablet's number."
+      );
+    } finally {
+      setRenumberBusy(false);
+    }
+  }
+
   async function handleDelete() {
     if (!confirm(`Delete ${auto.auto_number}? This removes it from the fleet for good.`)) return;
     setDeleteBusy(true);
@@ -206,7 +242,14 @@ function AutoRow({ auto, onChange }) {
 
   return (
     <tr className="border-t border-line align-top">
-      <td className="px-4 py-3 font-mono font-semibold">{auto.auto_number}</td>
+      <td className="px-4 py-3 font-mono font-semibold">
+        {auto.auto_number}
+        {auto.renumber_to && (
+          <p className="mt-1 text-xs font-normal text-amber">
+            moving to {auto.renumber_to} — when the tablet is next online
+          </p>
+        )}
+      </td>
       <td className="px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -251,6 +294,14 @@ function AutoRow({ auto, onChange }) {
             className="whitespace-nowrap rounded-full border border-line px-3 py-1.5 text-xs font-semibold hover:border-text-faint disabled:cursor-not-allowed disabled:opacity-50"
           >
             {screenBusy ? "…" : auto.screen_off ? "Turn on" : "Turn off"}
+          </button>
+          <button
+            type="button"
+            onClick={handleRenumber}
+            disabled={renumberBusy}
+            className="whitespace-nowrap rounded-full border border-line px-3 py-1.5 text-xs font-semibold hover:border-text-faint disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {renumberBusy ? "…" : "Change number"}
           </button>
           <button
             type="button"

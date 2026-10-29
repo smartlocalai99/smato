@@ -81,9 +81,6 @@ export const dynamic = "force-dynamic";
 
 export default function PlayerPage() {
   const [autoNumber, setAutoNumber] = useState(null);
-  // Reopened from the debug HUD, for a tablet set up with the wrong number
-  // or moved to a different auto.
-  const [changingAuto, setChangingAuto] = useState(false);
 
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem(AUTO_KEY) : null;
@@ -91,19 +88,9 @@ export default function PlayerPage() {
   }, []);
 
   if (autoNumber === null) return null;
-  if (!autoNumber || changingAuto) {
-    return (
-      <SetupScreen
-        current={autoNumber}
-        onSaved={(number) => {
-          setAutoNumber(number);
-          setChangingAuto(false);
-        }}
-        onCancel={autoNumber ? () => setChangingAuto(false) : null}
-      />
-    );
-  }
-  return <Player key={autoNumber} autoNumber={autoNumber} onChangeAuto={() => setChangingAuto(true)} />;
+  if (!autoNumber) return <SetupScreen onSaved={setAutoNumber} />;
+  // Keyed by number, so a renumber from the admin restarts the player clean.
+  return <Player key={autoNumber} autoNumber={autoNumber} onRenumbered={setAutoNumber} />;
 }
 
 function samePlaylist(a, b) {
@@ -145,12 +132,10 @@ function notifyNativeTouch(enabled) {
   }
 }
 
-// `current` is set when changing an already set-up tablet's number: the
-// form starts from it instead of suggesting the next free one.
-function SetupScreen({ current = "", onSaved, onCancel }) {
-  const [value, setValue] = useState(current);
-  const [label, setLabel] = useState(() => (current && localStorage.getItem(LABEL_KEY)) || "");
-  const touchedRef = useRef(Boolean(current));
+function SetupScreen({ onSaved }) {
+  const [value, setValue] = useState("");
+  const [label, setLabel] = useState("");
+  const touchedRef = useRef(false);
 
   // The setup form needs real taps — make sure touch isn't left blocked
   // from some earlier state (shouldn't happen, but cheap to be sure).
@@ -173,10 +158,6 @@ function SetupScreen({ current = "", onSaved, onCancel }) {
     if (!number) return;
     localStorage.setItem(AUTO_KEY, number);
     if (label.trim()) localStorage.setItem(LABEL_KEY, label.trim());
-    else localStorage.removeItem(LABEL_KEY);
-    // The saved schedule belongs to the old number — start this one clean.
-    // Its first sync downloads the new auto's ads and clears the old ones.
-    if (current && number !== current) localStorage.removeItem(ADS_SNAPSHOT_KEY);
     onSaved(number);
   }
 
@@ -185,7 +166,7 @@ function SetupScreen({ current = "", onSaved, onCancel }) {
       <form className="setup-card" onSubmit={handleSubmit}>
         <div>
           <span className="landing__mark">smato · player setup</span>
-          <h1 className="signin__title">{current ? "Change this tablet's auto" : "Which auto is this?"}</h1>
+          <h1 className="signin__title">Which auto is this?</h1>
         </div>
         <div className="field">
           <label htmlFor="autoNumber">Auto number</label>
@@ -212,22 +193,13 @@ function SetupScreen({ current = "", onSaved, onCancel }) {
         <button className="btn btn--primary" type="submit">
           Save & start playing
         </button>
-        {onCancel && (
-          <button className="btn btn--ghost" type="button" onClick={onCancel}>
-            Cancel, keep {current}
-          </button>
-        )}
-        <p className="upload-status">
-          {current
-            ? "Ads for the new auto download as soon as the tablet is online."
-            : "Saved permanently on this tablet. You can change it later from the 5-tap corner panel."}
-        </p>
+        <p className="upload-status">Saved permanently on this tablet. You won&apos;t see this screen again.</p>
       </form>
     </div>
   );
 }
 
-function Player({ autoNumber, onChangeAuto }) {
+function Player({ autoNumber, onRenumbered }) {
   // Lock only after setup has handed over to the content screen. This also
   // runs when a saved auto is restored, even before ads or the network load.
   useEffect(() => {
@@ -576,24 +548,50 @@ function Player({ autoNumber, onChangeAuto }) {
     return () => window.removeEventListener("online", onOnline);
   }, [sync]);
 
-  // Picks up a blackout that was set while this tablet was offline — the
-  // broadcast below only reaches a tablet that's already connected when it
-  // fires, so this is the catch-up path for "was it off before I rebooted?"
-  // (and for "did I miss one while my connection was down?", see below).
-  const refreshScreenOff = useCallback(() => {
+  // The admin moved this tablet to a different auto number (Autos page) —
+  // the only way it changes after setup, so nobody riding in the auto can.
+  // Saved on the tablet, the old auto's saved schedule dropped, and the
+  // request cleared so it happens once; the player then restarts as the
+  // new number, and its first sync swaps in that auto's ads.
+  const applyRenumber = useCallback(
+    (to) => {
+      const number = String(to || "").trim().toUpperCase();
+      if (!number || number === autoNumber) return;
+      localStorage.setItem(AUTO_KEY, number);
+      localStorage.removeItem(LABEL_KEY);
+      localStorage.removeItem(ADS_SNAPSHOT_KEY);
+      supabase
+        .from("autos")
+        .update({ renumber_to: null })
+        .eq("auto_number", autoNumber)
+        .then(() => {});
+      onRenumbered(number);
+    },
+    [autoNumber, onRenumbered]
+  );
+
+  // Picks up a blackout (or a renumber) that was set while this tablet was
+  // offline — the broadcasts below only reach a tablet that's already
+  // connected when they fire, so this is the catch-up path for "was it off
+  // before I rebooted?" (and for "did I miss one while my connection was
+  // down?", see below). select("*") rather than naming columns, so it keeps
+  // working on a database that doesn't have renumber_to yet.
+  const refreshFromRow = useCallback(() => {
     supabase
       .from("autos")
-      .select("screen_off")
+      .select("*")
       .eq("auto_number", autoNumber)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (!error) setScreenOff(Boolean(data?.screen_off));
+        if (error) return;
+        setScreenOff(Boolean(data?.screen_off));
+        if (data?.renumber_to) applyRenumber(data.renumber_to);
       });
-  }, [autoNumber]);
+  }, [autoNumber, applyRenumber]);
 
   useEffect(() => {
-    refreshScreenOff();
-  }, [refreshScreenOff]);
+    refreshFromRow();
+  }, [refreshFromRow]);
 
   // The real trigger: sync the moment admin submits an ad (add/edit/pause/
   // delete), instead of waiting on a timer. Plain Realtime Broadcast, not
@@ -606,16 +604,19 @@ function Player({ autoNumber, onChangeAuto }) {
       .on("broadcast", { event: "screen" }, ({ payload }) => {
         if (payload?.auto_number === autoNumber) setScreenOff(Boolean(payload.screen_off));
       })
+      .on("broadcast", { event: "renumber" }, ({ payload }) => {
+        if (payload?.from === autoNumber) applyRenumber(payload.to);
+      })
       .subscribe((status) => {
         // Fires on the first join and again every time the connection comes
         // back after dropping — which in a moving auto is all day. Broadcasts
-        // sent while it was down never arrive, so catch up on both here.
+        // sent while it was down never arrive, so catch up on all of them here.
         if (status !== "SUBSCRIBED") return;
         sync();
-        refreshScreenOff();
+        refreshFromRow();
       });
     return () => supabase.removeChannel(channel);
-  }, [sync, autoNumber, refreshScreenOff]);
+  }, [sync, autoNumber, refreshFromRow, applyRenumber]);
 
   // Re-check which ads are time-active once a minute, offline-safe.
   useEffect(() => {
@@ -802,7 +803,6 @@ function Player({ autoNumber, onChangeAuto }) {
           current={current}
           playlistLength={playlist.length}
           onClose={() => setHudOpen(false)}
-          onChangeAuto={onChangeAuto}
         />
       )}
     </div>
@@ -817,7 +817,7 @@ function IdleScreen() {
   return <img className="player__idle" src="/idle.jpg" alt="" />;
 }
 
-function Hud({ autoNumber, hud, current, playlistLength, onClose, onChangeAuto }) {
+function Hud({ autoNumber, hud, current, playlistLength, onClose }) {
   return (
     <div className="hud">
       <div className="hud__title">
@@ -886,9 +886,6 @@ function Hud({ autoNumber, hud, current, playlistLength, onClose, onChangeAuto }
           <span>{JSON.stringify(hud.probe)}</span>
         </div>
       )}
-      <button className="btn hud__action" onClick={onChangeAuto}>
-        Change auto number
-      </button>
     </div>
   );
 }

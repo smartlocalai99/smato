@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
   downloaded: new Set(),
   broadcastHandlers: {},
   subscribeCallback: null,
+  autoRow: null,
+  updates: [],
 }));
 
 vi.mock("@/lib/supabase", () => ({
@@ -27,7 +29,11 @@ vi.mock("@/lib/supabase", () => ({
         },
         or: () => query,
         upsert: () => Promise.resolve({ error: null }),
-        maybeSingle: () => Promise.resolve({ data: null, error: null }),
+        update: (values) => {
+          state.updates.push({ table, values, filters });
+          return query;
+        },
+        maybeSingle: () => Promise.resolve({ data: table === "autos" ? state.autoRow : null, error: null }),
         then: (resolve, reject) => {
           if (table === "ads") state.adsQueries += 1;
           const rows = table === "ads" ? state.ads : [];
@@ -97,6 +103,8 @@ beforeEach(() => {
   state.downloaded = new Set();
   state.broadcastHandlers = {};
   state.subscribeCallback = null;
+  state.autoRow = null;
+  state.updates = [];
   vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
   vi.spyOn(window.HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
   vi.spyOn(window.HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
@@ -210,5 +218,38 @@ describe("player sync", () => {
     await vi.waitFor(() => expect(deleteAds).toHaveBeenCalledTimes(1));
     expect([...deleteAds.mock.calls[0][0]].sort()).toEqual(["deleted", "finished"]);
     expect(downloadAd).not.toHaveBeenCalled();
+  });
+});
+
+describe("renumbering from the admin", () => {
+  it("moves to the new number the moment the admin's broadcast arrives", async () => {
+    localStorage.setItem("smato.lastAdsSnapshot", JSON.stringify([ad("old")]));
+    startPlayer();
+    await vi.waitFor(() => expect(state.broadcastHandlers.renumber).toBeTypeOf("function"));
+
+    await act(async () => {
+      state.broadcastHandlers.renumber({ payload: { from: "AUTO-09", to: "AUTO-07" } });
+    });
+    expect(localStorage.getItem("smato.autoNumber")).toBe("AUTO-01");
+
+    await act(async () => {
+      state.broadcastHandlers.renumber({ payload: { from: "AUTO-01", to: "auto-05" } });
+    });
+    expect(localStorage.getItem("smato.autoNumber")).toBe("AUTO-05");
+    // The old auto's schedule is gone (the new number's first sync may
+    // already have saved its own).
+    expect(localStorage.getItem("smato.lastAdsSnapshot") || "").not.toContain('"old"');
+    expect(state.updates).toContainEqual({
+      table: "autos",
+      values: { renumber_to: null },
+      filters: [["auto_number", "AUTO-01"]],
+    });
+  });
+
+  it("picks up a renumber that was requested while it was offline", async () => {
+    state.autoRow = { auto_number: "AUTO-01", screen_off: false, renumber_to: "AUTO-05" };
+    startPlayer();
+
+    await vi.waitFor(() => expect(localStorage.getItem("smato.autoNumber")).toBe("AUTO-05"));
   });
 });
