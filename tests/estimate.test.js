@@ -90,6 +90,7 @@ describe("buildEstimate", () => {
     expect(estimate.loop.map((ad) => ad.title)).toEqual(["dhruva", "skandakshi"]);
     expect(estimate.autos[11].loop).toEqual(["skandakshi"]);
     expect(estimate.minutesToday).toBe(320);
+    expect(estimate.minutesEstimate).toBe(160 * 20);
     expect(estimate.clients).toEqual([
       { title: "dhruva", position: 1, liveAutos: 1, plannedAutos: 0, kmToday: 0, minutesToday: 0 },
       { title: "skandakshi", position: 2, liveAutos: 11, plannedAutos: 9, kmToday: 80, minutesToday: 320 },

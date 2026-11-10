@@ -166,17 +166,21 @@ export default function EstimateView({ initial, linkKey }) {
         </p>
 
         <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-4">
+          <Figure label="Autos" value={total} note="full fleet" />
           <Figure
-            label="Autos"
-            value={total}
-            note={`${data.liveCount} live (${data.activeToday} active today), ${data.plannedCount} planned`}
-          />
-          <Figure label="Km covered today" value={formatKm(data.kmToday)} note="by the live autos" />
-          <Figure label="Time on the road" value={formatMinutes(data.minutesToday)} note="live autos today, combined" />
-          <Figure
-            label={`Km a day with ${total}`}
+            label="Km a day"
             value={data.kmEstimate ? `≈ ${formatKm(data.kmEstimate)}` : "—"}
-            note={data.kmEstimate ? "approx, from today's average" : "shows once autos have driven today"}
+            note={data.kmEstimate ? `approx, all ${total} autos` : "shows once autos have driven today"}
+          />
+          <Figure
+            label="Time on the road a day"
+            value={data.minutesEstimate ? `≈ ${formatMinutes(data.minutesEstimate)}` : "—"}
+            note={data.minutesEstimate ? `approx, all ${total} autos` : "shows once autos have driven today"}
+          />
+          <Figure
+            label="Clients in the loop"
+            value={data.clients.length}
+            note="played in order on every auto"
           />
         </dl>
 
