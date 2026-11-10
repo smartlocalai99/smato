@@ -75,7 +75,7 @@ describe("buildEstimate", () => {
           { title: "dhruva", auto_number: "AUTO-03", active: true, sort_order: 0 },
           { title: "kusuma", auto_number: null, active: false, sort_order: 2 },
         ],
-        kmByAuto: { "AUTO-01": 30, "AUTO-02": 50 },
+        statsByAuto: { "AUTO-01": { km: 30, minutes: 120 }, "AUTO-02": { km: 50, minutes: 200 } },
       },
       AFTERNOON
     );
@@ -89,5 +89,17 @@ describe("buildEstimate", () => {
     expect(estimate.kmEstimate).toBe(40 * 20);
     expect(estimate.loop.map((ad) => ad.title)).toEqual(["dhruva", "skandakshi"]);
     expect(estimate.autos[11].loop).toEqual(["skandakshi"]);
+    expect(estimate.minutesToday).toBe(320);
+    expect(estimate.clients).toEqual([
+      { title: "dhruva", position: 1, liveAutos: 1, plannedAutos: 0, kmToday: 0, minutesToday: 0 },
+      { title: "skandakshi", position: 2, liveAutos: 11, plannedAutos: 9, kmToday: 80, minutesToday: 320 },
+    ]);
+  });
+
+  it("puts planned autos on the same clock as live ones, still labelled planned", () => {
+    const night = buildEstimate({ autos: liveFleet(11) }, NIGHT);
+    const planned = night.autos.filter((a) => a.planned);
+    expect(planned).toHaveLength(9);
+    expect(planned.every((a) => a.status.label === "Off for the night")).toBe(true);
   });
 });
