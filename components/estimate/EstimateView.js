@@ -83,7 +83,7 @@ export default function EstimateView({ initial, linkKey }) {
   useEffect(() => {
     const id = setInterval(async () => {
       try {
-        const res = await fetch(`/api/estimate/${linkKey}`, { cache: "no-store" });
+        const res = await fetch(`/api/live/${linkKey}`, { cache: "no-store" });
         if (res.ok) setData(await res.json());
       } catch {
         // Keep showing the last good update; the next tick tries again.
