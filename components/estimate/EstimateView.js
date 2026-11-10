@@ -58,9 +58,13 @@ function Figure({ label, value, note }) {
   );
 }
 
-// The loop in play order, with whatever is on screen right now marked.
-function LoopOrder({ loop, playing }) {
-  if (!loop.length) return <span className="text-xs text-text-faint">No ads scheduled today</span>;
+// The loop in play order, with whatever is on screen right now marked, then
+// the signed-up clients whose ads aren't live yet, tagged planned and left
+// unnumbered — they join the order once their ad goes live.
+function LoopOrder({ loop, playing, nameOf, upcoming }) {
+  if (!loop.length && !upcoming.length) {
+    return <span className="text-xs text-text-faint">No ads scheduled today</span>;
+  }
   return (
     <ol className="flex flex-wrap gap-1.5" aria-label="Play order">
       {loop.map((title, i) => {
@@ -73,16 +77,25 @@ function LoopOrder({ loop, playing }) {
             }`}
           >
             <span className="font-mono text-[0.68rem] text-text-faint">{i + 1}</span>
-            <span className="break-words">{title}</span>
+            <span className="break-words">{nameOf(title)}</span>
             {current && <span className="sr-only">(playing now)</span>}
           </li>
         );
       })}
+      {upcoming.map((name) => (
+        <li
+          key={name}
+          className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-line px-2 py-0.5 text-xs text-text-dim"
+        >
+          <span className="break-words">{name}</span>
+          <span className="text-[0.68rem] text-text-faint">Planned</span>
+        </li>
+      ))}
     </ol>
   );
 }
 
-function AutoReport({ auto }) {
+function AutoReport({ auto, nameOf, upcoming }) {
   return (
     <li className="flex flex-col gap-2 px-4 py-3.5">
       <div className="flex items-start justify-between gap-3">
@@ -96,7 +109,7 @@ function AutoReport({ auto }) {
           </p>
           <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs">
             <span className={`font-semibold ${STATUS_TEXT[auto.status.kind]}`}>{auto.status.label}</span>
-            {auto.playing && <span className="min-w-0 break-words text-text-dim">Playing &ldquo;{auto.playing}&rdquo;</span>}
+            {auto.playing && <span className="min-w-0 break-words text-text-dim">Playing &ldquo;{nameOf(auto.playing)}&rdquo;</span>}
           </p>
         </div>
         <div className="flex-none text-right font-mono text-xs leading-relaxed text-text-dim">
@@ -111,7 +124,7 @@ function AutoReport({ auto }) {
           {auto.approx && <div className="font-body text-[0.68rem] text-text-faint">approx</div>}
         </div>
       </div>
-      <LoopOrder loop={auto.loop} playing={auto.playing} />
+      <LoopOrder loop={auto.loop} playing={auto.playing} nameOf={nameOf} upcoming={upcoming} />
     </li>
   );
 }
@@ -137,6 +150,11 @@ export default function EstimateView({ initial, linkKey }) {
   }, [linkKey]);
 
   const total = data.liveCount + data.plannedCount;
+  // Ad titles shown by client name ("dhruva oct" → Dhruva), and the clients
+  // not live yet, for every auto's play order.
+  const names = Object.fromEntries(data.clients.map((c) => [c.title, c.name]));
+  const nameOf = (title) => names[title] || title;
+  const upcoming = data.clients.filter((c) => c.planned).map((c) => c.name);
 
   return (
     <div className="console min-h-screen-safe bg-ink text-text">
@@ -212,7 +230,7 @@ export default function EstimateView({ initial, linkKey }) {
           <p className="mt-1 text-sm text-text-dim">Play order, what&rsquo;s on screen now, km and time on the road.</p>
           <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-panel">
             {data.autos.map((auto) => (
-              <AutoReport key={auto.auto_number} auto={auto} />
+              <AutoReport key={auto.auto_number} auto={auto} nameOf={nameOf} upcoming={upcoming} />
             ))}
           </ul>
         </section>
