@@ -76,7 +76,6 @@ function LoopOrder({ loop, playing, nameOf, upcoming }) {
               current ? "border-green/40 bg-green/10 text-text" : "border-line text-text-dim"
             }`}
           >
-            <span className="font-mono text-[0.68rem] text-text-faint">{i + 1}</span>
             <span className="break-words">{nameOf(title)}</span>
             {current && <span className="sr-only">(playing now)</span>}
           </li>
