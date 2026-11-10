@@ -91,10 +91,21 @@ describe("buildEstimate", () => {
     expect(estimate.autos[11].loop).toEqual(["skandakshi"]);
     expect(estimate.minutesToday).toBe(320);
     expect(estimate.minutesEstimate).toBe(160 * 20);
-    expect(estimate.clients).toEqual([
-      { title: "dhruva", position: 1, liveAutos: 1, plannedAutos: 0, kmToday: 0, minutesToday: 0 },
-      { title: "skandakshi", position: 2, liveAutos: 11, plannedAutos: 9, kmToday: 80, minutesToday: 320 },
+    expect(estimate.clients.slice(0, 2)).toEqual([
+      { title: "dhruva", name: "Dhruva", position: 1, planned: false, liveAutos: 1, plannedAutos: 0, kmToday: 0, minutesToday: 0 },
+      { title: "skandakshi", name: "Skandakshi", position: 2, planned: false, liveAutos: 11, plannedAutos: 9, kmToday: 80, minutesToday: 320 },
     ]);
+    // Signed-up clients without an ad running today are listed as planned.
+    expect(estimate.clients.slice(2).map((c) => [c.title, c.planned])).toEqual([
+      ["Kusuma", true],
+      ["Lifeline", true],
+      ["Cakewala", true],
+      ["Kakatiya Restaurant", true],
+    ]);
+    // Planned autos get today's live average, marked approx.
+    const planned = estimate.autos[11];
+    expect([planned.km, planned.minutes, planned.approx]).toEqual([40, 160, true]);
+    expect(estimate.autos[0].approx).toBeUndefined();
   });
 
   it("puts planned autos on the same clock as live ones, still labelled planned", () => {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase, adFileUrl, ADS_CHANNEL_NAME } from "@/lib/supabase";
 import { adCacheUrl, getDownloadedAdIds, putAd, deleteAds, downloadAd } from "@/lib/adCache";
 import { adsForAuto, isAdActiveNow, hasCampaignEnded, isQuietHours } from "@/lib/time";
+import { flushFixes, queueFix } from "@/lib/locationQueue";
 
 const AUTO_KEY = "smato.autoNumber";
 const LABEL_KEY = "smato.autoLabel";
@@ -57,6 +58,12 @@ async function readBattery() {
   }
   return { level: null, charging: null };
 }
+// Sends any GPS fixes still waiting on the tablet (lib/locationQueue.js).
+function uploadPendingFixes() {
+  if (!navigator.onLine) return;
+  flushFixes((rows) => supabase.from("auto_locations").insert(rows));
+}
+
 // Ads sync is event-driven (Supabase Realtime fires the moment an ad is
 // added/edited/deleted, and the tablet catches up every time its realtime
 // connection comes back), not on a timer. This interval only exists as a
@@ -322,6 +329,7 @@ function Player({ autoNumber, onRenumbered }) {
     let cancelled = false;
     async function beat() {
       if (!navigator.onLine) return;
+      uploadPendingFixes();
       const battery = await readBattery();
       await supabase
         .from("autos")
@@ -364,6 +372,19 @@ function Player({ autoNumber, onRenumbered }) {
         const now = Date.now();
         if (now - lastWrite < GPS_MIN_INTERVAL_MS) return;
         lastWrite = now;
+
+        // The route history goes through the on-tablet queue, so a fix
+        // taken without signal is uploaded later instead of being lost —
+        // this is what the day's distance is measured from.
+        queueFix({
+          auto_number: autoNumber,
+          lat: fix.lat,
+          lng: fix.lng,
+          accuracy: fix.accuracy,
+          recorded_at: fix.at.toISOString(),
+        });
+        uploadPendingFixes();
+
         if (!navigator.onLine) return;
         supabase
           .from("autos")
@@ -378,21 +399,6 @@ function Player({ autoNumber, onRenumbered }) {
             },
             { onConflict: "auto_number" }
           )
-          .then(() => {});
-
-        // A separate append-only row per fix, alongside the live "current
-        // position" overwrite above — this is what an end-of-day route
-        // report reads from, since the fields above only ever hold the
-        // latest point.
-        supabase
-          .from("auto_locations")
-          .insert({
-            auto_number: autoNumber,
-            lat: fix.lat,
-            lng: fix.lng,
-            accuracy: fix.accuracy,
-            recorded_at: fix.at.toISOString(),
-          })
           .then(() => {});
       },
       (err) => setHud((h) => ({ ...h, gpsError: err.message })),
@@ -543,7 +549,10 @@ function Player({ autoNumber, onRenumbered }) {
   }, []);
 
   useEffect(() => {
-    const onOnline = () => sync();
+    const onOnline = () => {
+      sync();
+      uploadPendingFixes();
+    };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
   }, [sync]);

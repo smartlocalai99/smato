@@ -99,12 +99,17 @@ function AutoReport({ auto }) {
             {auto.playing && <span className="min-w-0 break-words text-text-dim">Playing &ldquo;{auto.playing}&rdquo;</span>}
           </p>
         </div>
-        {!auto.planned && (
-          <div className="flex-none text-right font-mono text-xs leading-relaxed text-text-dim">
-            <div>{formatKm(auto.km)} km</div>
-            <div>{formatMinutes(auto.minutes)}</div>
+        <div className="flex-none text-right font-mono text-xs leading-relaxed text-text-dim">
+          <div>
+            {auto.approx ? "≈ " : ""}
+            {formatKm(auto.km)} km
           </div>
-        )}
+          <div>
+            {auto.approx ? "≈ " : ""}
+            {formatMinutes(auto.minutes)}
+          </div>
+          {auto.approx && <div className="font-body text-[0.68rem] text-text-faint">approx</div>}
+        </div>
       </div>
       <LoopOrder loop={auto.loop} playing={auto.playing} />
     </li>
@@ -178,45 +183,26 @@ export default function EstimateView({ initial, linkKey }) {
             note={data.minutesEstimate ? `approx, all ${total} autos` : "shows once autos have driven today"}
           />
           <Figure
-            label="Clients in the loop"
+            label="Clients"
             value={data.clients.length}
-            note="played in order on every auto"
+            note={`${data.clients.filter((c) => !c.planned).length} playing now`}
           />
         </dl>
 
-        <section className="mt-6" aria-label="Map">
-          <EstimateMap autos={data.autos} />
+        <section className="mt-4 flex flex-wrap items-center gap-1.5" aria-label="Clients">
+          {data.clients.map((client) => (
+            <span
+              key={client.title}
+              className="inline-flex items-center gap-1.5 rounded-full border border-line bg-panel px-3 py-1 text-sm"
+            >
+              {client.name}
+              {client.planned && <span className="text-xs text-text-faint">Planned</span>}
+            </span>
+          ))}
         </section>
 
-        <section className="mt-8" aria-labelledby="clients-heading">
-          <h2 id="clients-heading" className="font-display text-xl font-semibold">
-            Clients in the loop
-          </h2>
-          <p className="mt-1 text-sm text-text-dim">In play order. Each auto plays them one after another, all day.</p>
-          {data.clients.length ? (
-            <ol className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-panel">
-              {data.clients.map((client) => (
-                <li key={client.title} className="flex items-start gap-3 px-4 py-3.5">
-                  <span className="w-5 flex-none pt-0.5 font-mono text-xs text-text-faint">{client.position}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words font-semibold">{client.title}</p>
-                    <p className="mt-0.5 text-xs text-text-dim">
-                      On {client.liveAutos} live auto{client.liveAutos === 1 ? "" : "s"}
-                      {client.plannedAutos ? ` + ${client.plannedAutos} planned` : ""}
-                    </p>
-                  </div>
-                  <div className="flex-none text-right font-mono text-xs leading-relaxed text-text-dim">
-                    <div>{formatKm(client.kmToday)} km</div>
-                    <div>{formatMinutes(client.minutesToday)}</div>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="mt-3 rounded-2xl border border-dashed border-line p-6 text-sm text-text-dim">
-              No ads are scheduled for today.
-            </p>
-          )}
+        <section className="mt-6" aria-label="Map">
+          <EstimateMap autos={data.autos} />
         </section>
 
         <section className="mt-8" aria-labelledby="autos-heading">
