@@ -13,7 +13,7 @@ const GLIDE_MS = 1200;
 // icons — it would just look broken side-on. What we can do, and what
 // actually reads as "live tracking," is glide the marker to its new spot
 // instead of snapping there.
-const autoIcon = L.icon({
+export const autoIcon = L.icon({
   iconUrl: "/auto-marker.png",
   iconSize: [46, 40],
   iconAnchor: [23, 20],
@@ -21,7 +21,7 @@ const autoIcon = L.icon({
   className: "drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)]",
 });
 
-function escapeHtml(value) {
+export function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (c) => ({
     "&": "&amp;",
     "<": "&lt;",
@@ -53,7 +53,7 @@ function popupHtml(auto) {
 
 // Eases a marker from wherever it currently is to `to`, instead of jumping —
 // the glide that makes a live map feel alive.
-function glideMarkerTo(marker, to) {
+export function glideMarkerTo(marker, to) {
   if (marker._glideFrame) cancelAnimationFrame(marker._glideFrame);
 
   const from = marker.getLatLng();
