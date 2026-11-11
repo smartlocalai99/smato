@@ -87,7 +87,6 @@ function LoopOrder({ loop, playing, nameOf, upcoming }) {
           className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-line px-2 py-0.5 text-xs text-text-dim"
         >
           <span className="break-words">{name}</span>
-          <span className="text-[0.68rem] text-text-faint">Planned</span>
         </li>
       ))}
     </ol>
@@ -102,13 +101,10 @@ function AutoReport({ auto, nameOf, upcoming }) {
           <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className="font-mono text-sm font-semibold">{auto.auto_number}</span>
             {auto.driver && <span className="text-sm text-text">{auto.driver}</span>}
-            {auto.planned && (
-              <span className="rounded-full border border-line px-1.5 text-[0.68rem] text-text-dim">Planned</span>
-            )}
           </p>
           <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs">
             {/* An auto that's reporting just shows what it's playing — no "Live" tag. */}
-            {auto.status.kind !== "live" && (
+            {auto.status.kind !== "live" && auto.status.kind !== "planned" && (
               <span className={`font-semibold ${STATUS_TEXT[auto.status.kind]}`}>{auto.status.label}</span>
             )}
             {auto.playing && <span className="min-w-0 break-words text-text-dim">Playing &ldquo;{nameOf(auto.playing)}&rdquo;</span>}
@@ -216,7 +212,6 @@ export default function EstimateView({ initial, linkKey }) {
               className="inline-flex items-center gap-1.5 rounded-full border border-line bg-panel px-3 py-1 text-sm"
             >
               {client.name}
-              {client.planned && <span className="text-xs text-text-faint">Planned</span>}
             </span>
           ))}
         </section>
@@ -239,8 +234,8 @@ export default function EstimateView({ initial, linkKey }) {
 
         <footer className="mt-10 border-t border-line pt-4 text-xs leading-relaxed text-text-faint">
           <p>
-            Live autos refresh every 2 minutes during playing hours. Planned autos, their positions, and
-            figures marked approx are estimates of the full {total}-auto fleet. Km and time count only the
+            Live autos refresh every 2 minutes during playing hours. Some autos and their positions, and
+            figures marked approx, are estimates of the full {total}-auto fleet. Km and time count only the
             live autos.
           </p>
           <p className="mt-1">Updated {istTime(data.updatedAt)}</p>

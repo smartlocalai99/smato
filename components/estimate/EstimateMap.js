@@ -10,9 +10,9 @@ const DEFAULT_ZOOM = 13;
 
 function popupHtml(auto) {
   const lines = [
-    `<strong>${escapeHtml(auto.auto_number)}</strong>${auto.planned ? " (planned)" : ""}`,
+    `<strong>${escapeHtml(auto.auto_number)}</strong>`,
     auto.driver ? escapeHtml(auto.driver) : null,
-    auto.status.kind === "live" ? null : escapeHtml(auto.status.label),
+    auto.status.kind === "live" || auto.status.kind === "planned" ? null : escapeHtml(auto.status.label),
     auto.playing
       ? `Playing "${escapeHtml(auto.playing)}"`
       : auto.planned && auto.loop.length
@@ -22,8 +22,7 @@ function popupHtml(auto) {
   return `<div class="text-[0.82rem] leading-relaxed">${lines.join("<br/>")}</div>`;
 }
 
-// Every auto on one map, live and planned alike — same marker, with the
-// planned ones labelled as planned.
+// Every auto on one map, using the same marker.
 export default function EstimateMap({ autos }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -63,7 +62,7 @@ export default function EstimateMap({ autos }) {
       const marker = L.marker(pos, { icon: autoIcon })
         .addTo(map)
         .bindPopup(popupHtml(auto))
-        .bindTooltip(auto.planned ? `${auto.auto_number} (planned)` : auto.auto_number, {
+        .bindTooltip(auto.auto_number, {
           permanent: true,
           direction: "top",
           offset: [0, -16],
