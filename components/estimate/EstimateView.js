@@ -123,7 +123,7 @@ function AutoReport({ auto, nameOf, upcoming }) {
           {auto.approx && <div className="font-body text-[0.68rem] text-text-faint">approx</div>}
         </div>
       </div>
-      <LoopOrder loop={auto.loop} playing={auto.playing} nameOf={nameOf} upcoming={upcoming} />
+      <LoopOrder loop={auto.loop} playing={auto.playing || auto.preview} nameOf={nameOf} upcoming={upcoming} />
     </li>
   );
 }

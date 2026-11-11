@@ -104,7 +104,16 @@ describe("buildEstimate", () => {
     ]);
     // Planned autos get today's live average, marked approx.
     const planned = estimate.autos[11];
-    expect([planned.km, planned.minutes, planned.approx]).toEqual([40, 160, true]);
+    expect(planned.approx).toBe(true);
+    expect(planned.km).toBeCloseTo(40 * 0.82);
+    expect(planned.minutes).toBe(Math.round(160 * 0.82));
+    // Planned autos differ from each other but still add up to the average.
+    const plannedKm = estimate.autos.slice(11).map((a) => a.km);
+    expect(new Set(plannedKm.map((km) => km.toFixed(2))).size).toBe(9);
+    expect(plannedKm.reduce((sum, km) => sum + km, 0)).toBeCloseTo(40 * 9);
+    // A preview of the loop, never reported as playing.
+    expect(planned.playing).toBeNull();
+    expect(estimate.loop.map((ad) => ad.title)).toContain(planned.preview);
     expect(estimate.autos[0].approx).toBeUndefined();
   });
 
