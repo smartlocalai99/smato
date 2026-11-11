@@ -122,5 +122,42 @@ describe("buildEstimate", () => {
     const planned = night.autos.filter((a) => a.planned);
     expect(planned).toHaveLength(9);
     expect(planned.every((a) => a.status.label === "Off for the night")).toBe(true);
+    expect(night.autos.every((a) => !a.previewStatus && !a.playing && !a.preview)).toBe(true);
+  });
+
+  it("mixes recent-update and playing-only previews for autos 11–20 without changing real fleet activity", () => {
+    const autos = liveFleet(11);
+    autos[10].last_seen_at = null;
+    const input = {
+      autos,
+      ads: ["dhruva", "kusuma", "skandakshi"].map((title) => ({ title, active: true })),
+    };
+    const estimate = buildEstimate(input, AFTERNOON);
+    const previews = estimate.autos.slice(10);
+    expect(previews).toHaveLength(10);
+    expect(new Set(previews.map((a) => a.previewStatus.kind))).toEqual(new Set(["live", "recent"]));
+    const recent = previews.filter((a) => a.previewStatus.kind === "recent");
+    expect(new Set(recent.map((a) => a.previewStatus.label)).size).toBeGreaterThan(1);
+    expect(recent.every((a) => /^Last update \d+ min ago$/.test(a.previewStatus.label))).toBe(true);
+    expect(previews.every((a) => a.loop.includes(a.playing || a.preview))).toBe(true);
+    expect(new Set(previews.map((a) => a.playing || a.preview)).size).toBeGreaterThan(1);
+    expect(previews[0].status.kind).toBe("parked");
+    expect(previews[0].playing).toBe("skandakshi");
+    expect(estimate.activeToday).toBe(10);
+    expect(estimate.autos.slice(0, 10).every((a) => !a.previewStatus)).toBe(true);
+    expect(buildEstimate(input, new Date(AFTERNOON.getTime() + 30000)).autos).toEqual(estimate.autos);
+    const later = buildEstimate(input, new Date(AFTERNOON.getTime() + 2 * 60000));
+    expect(later.autos.slice(10).map((a) => a.previewStatus)).not.toEqual(previews.map((a) => a.previewStatus));
+
+    // Once AUTO-11 reports again, its actual status takes precedence.
+    autos[10].last_seen_at = minsBefore(AFTERNOON, 23);
+    const reported = buildEstimate(input, AFTERNOON).autos[10];
+    expect(reported.previewStatus).toBeUndefined();
+    expect(reported.status.label).toBe("Last update 23 min ago");
+  });
+
+  it("does not preview playing or update activity when no ads are scheduled", () => {
+    const estimate = buildEstimate({ autos: liveFleet(11) }, AFTERNOON);
+    expect(estimate.autos.slice(11).every((a) => !a.previewStatus && !a.preview)).toBe(true);
   });
 });

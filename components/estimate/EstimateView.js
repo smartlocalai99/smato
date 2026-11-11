@@ -94,6 +94,9 @@ function LoopOrder({ loop, playing, nameOf, upcoming }) {
 }
 
 function AutoReport({ auto, nameOf, upcoming }) {
+  const playing = auto.playing || auto.preview;
+  const status = auto.previewStatus || auto.status;
+
   return (
     <li className="flex flex-col gap-2 px-4 py-3.5">
       <div className="flex items-start justify-between gap-3">
@@ -104,10 +107,10 @@ function AutoReport({ auto, nameOf, upcoming }) {
           </p>
           <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs">
             {/* An auto that's reporting just shows what it's playing — no "Live" tag. */}
-            {auto.status.kind !== "live" && auto.status.kind !== "planned" && (
-              <span className={`font-semibold ${STATUS_TEXT[auto.status.kind]}`}>{auto.status.label}</span>
+            {status.kind !== "live" && status.kind !== "planned" && (
+              <span className={`font-semibold ${STATUS_TEXT[status.kind]}`}>{status.label}</span>
             )}
-            {auto.playing && <span className="min-w-0 break-words text-text-dim">Playing &ldquo;{nameOf(auto.playing)}&rdquo;</span>}
+            {playing && <span className="min-w-0 break-words text-text-dim">Playing &ldquo;{nameOf(playing)}&rdquo;</span>}
           </p>
         </div>
         <div className="flex-none text-right font-mono text-xs leading-relaxed text-text-dim">
@@ -119,10 +122,9 @@ function AutoReport({ auto, nameOf, upcoming }) {
             {auto.approx ? "≈ " : ""}
             {formatMinutes(auto.minutes)}
           </div>
-          {auto.approx && <div className="font-body text-[0.68rem] text-text-faint">approx</div>}
         </div>
       </div>
-      <LoopOrder loop={auto.loop} playing={auto.playing || auto.preview} nameOf={nameOf} upcoming={upcoming} />
+      <LoopOrder loop={auto.loop} playing={playing} nameOf={nameOf} upcoming={upcoming} />
     </li>
   );
 }
@@ -191,12 +193,12 @@ export default function EstimateView({ initial, linkKey }) {
           <Figure
             label="Km a day"
             value={data.kmEstimate ? `≈ ${formatKm(data.kmEstimate)}` : "—"}
-            note={data.kmEstimate ? `approx, all ${total} autos` : "shows once autos have driven today"}
+            note={data.kmEstimate ? `all ${total} autos` : "shows once autos have driven today"}
           />
           <Figure
             label="Time on the road a day"
             value={data.minutesEstimate ? `≈ ${formatMinutes(data.minutesEstimate)}` : "—"}
-            note={data.minutesEstimate ? `approx, all ${total} autos` : "shows once autos have driven today"}
+            note={data.minutesEstimate ? `all ${total} autos` : "shows once autos have driven today"}
           />
           <Figure
             label="Clients"
@@ -234,9 +236,9 @@ export default function EstimateView({ initial, linkKey }) {
 
         <footer className="mt-10 border-t border-line pt-4 text-xs leading-relaxed text-text-faint">
           <p>
-            Live autos refresh every 2 minutes during playing hours. Some autos and their positions, and
-            figures marked approx, are estimates of the full {total}-auto fleet. Km and time count only the
-            live autos.
+            Live autos refresh every 2 minutes during playing hours. Some autos, their positions,
+            update times and playing ads are previews of the full {total}-auto fleet. Figures marked ≈ are estimates
+            based on today&rsquo;s live autos.
           </p>
           <p className="mt-1">Updated {istTime(data.updatedAt)}</p>
         </footer>

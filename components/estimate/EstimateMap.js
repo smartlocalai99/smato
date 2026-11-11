@@ -9,12 +9,14 @@ const DEFAULT_CENTER = [14.4673, 78.8242];
 const DEFAULT_ZOOM = 13;
 
 function popupHtml(auto) {
+  const playing = auto.playing || auto.preview;
+  const status = auto.previewStatus || auto.status;
   const lines = [
     `<strong>${escapeHtml(auto.auto_number)}</strong>`,
     auto.driver ? escapeHtml(auto.driver) : null,
-    auto.status.kind === "live" || auto.status.kind === "planned" ? null : escapeHtml(auto.status.label),
-    auto.playing
-      ? `Playing "${escapeHtml(auto.playing)}"`
+    status.kind === "live" || status.kind === "planned" ? null : escapeHtml(status.label),
+    playing
+      ? `Playing "${escapeHtml(playing)}"`
       : auto.planned && auto.loop.length
         ? `Will play: ${escapeHtml(auto.loop.join(", "))}`
         : null,
