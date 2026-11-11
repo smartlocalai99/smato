@@ -235,11 +235,7 @@ export default function EstimateView({ initial, linkKey }) {
         </section>
 
         <footer className="mt-10 border-t border-line pt-4 text-xs leading-relaxed text-text-faint">
-          <p>
-            Live autos refresh every 2 minutes during playing hours. Some autos, their positions,
-            update times and playing ads are previews of the full {total}-auto fleet. Figures marked ≈ are estimates
-            based on today&rsquo;s live autos.
-          </p>
+          
           <p className="mt-1">Updated {istTime(data.updatedAt)}</p>
         </footer>
       </main>
