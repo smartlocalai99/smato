@@ -107,7 +107,10 @@ function AutoReport({ auto, nameOf, upcoming }) {
             )}
           </p>
           <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs">
-            <span className={`font-semibold ${STATUS_TEXT[auto.status.kind]}`}>{auto.status.label}</span>
+            {/* An auto that's reporting just shows what it's playing — no "Live" tag. */}
+            {auto.status.kind !== "live" && (
+              <span className={`font-semibold ${STATUS_TEXT[auto.status.kind]}`}>{auto.status.label}</span>
+            )}
             {auto.playing && <span className="min-w-0 break-words text-text-dim">Playing &ldquo;{nameOf(auto.playing)}&rdquo;</span>}
           </p>
         </div>

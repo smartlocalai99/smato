@@ -12,7 +12,7 @@ function popupHtml(auto) {
   const lines = [
     `<strong>${escapeHtml(auto.auto_number)}</strong>${auto.planned ? " (planned)" : ""}`,
     auto.driver ? escapeHtml(auto.driver) : null,
-    escapeHtml(auto.status.label),
+    auto.status.kind === "live" ? null : escapeHtml(auto.status.label),
     auto.playing
       ? `Playing "${escapeHtml(auto.playing)}"`
       : auto.planned && auto.loop.length
