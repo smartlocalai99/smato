@@ -5,6 +5,7 @@ import { supabase, adFileUrl, ADS_CHANNEL_NAME } from "@/lib/supabase";
 import { adCacheUrl, getDownloadedAdIds, putAd, deleteAds, downloadAd } from "@/lib/adCache";
 import { adsForAuto, isAdActiveNow, hasCampaignEnded, isQuietHours } from "@/lib/time";
 import { flushFixes, queueFix } from "@/lib/locationQueue";
+import { nativeCall, nativeInfo, pairTv, pollTv } from "@/lib/tvDevice";
 
 const AUTO_KEY = "smato.autoNumber";
 const LABEL_KEY = "smato.autoLabel";
@@ -83,6 +84,9 @@ const TICK_INTERVAL_MS = 60 * 1000;
 const GPS_MIN_INTERVAL_MS = 5 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 3 * 60 * 1000;
 const IMAGE_DURATION_MS = 2 * 60 * 1000;
+// TVs also check for admin commands this often, on top of the instant
+// realtime nudge — a missed nudge still lands within a few minutes.
+const TV_POLL_INTERVAL_MS = 5 * 60 * 1000;
 
 export const dynamic = "force-dynamic";
 
@@ -113,17 +117,19 @@ function samePlaylist(a, b) {
   );
 }
 
-// AUTO-01, AUTO-02, ... — the next unused number in that sequence, so
-// whoever's setting up a new tablet doesn't have to go check what the
-// last one was called. Only ever a suggestion: still a plain editable
-// field, for the rare case of deliberately reusing or skipping a number.
-function nextAutoNumber(autos) {
+// AUTO-01, AUTO-02, ... (TV-01, TV-02, ... on a TV) — the next unused
+// number in that sequence, so whoever's setting up a new device doesn't
+// have to go check what the last one was called. Only ever a suggestion:
+// still a plain editable field, for the rare case of deliberately reusing
+// or skipping a number.
+function nextAutoNumber(autos, prefix = "AUTO") {
+  const pattern = new RegExp(`^${prefix}-(\\d+)$`);
   const used = autos
-    .map((a) => /^AUTO-(\d+)$/.exec(a.auto_number))
+    .map((a) => pattern.exec(a.auto_number))
     .filter(Boolean)
     .map((match) => parseInt(match[1], 10));
   const next = used.length ? Math.max(...used) + 1 : 1;
-  return `AUTO-${String(next).padStart(2, "0")}`;
+  return `${prefix}-${String(next).padStart(2, "0")}`;
 }
 
 // Tells the Android wrapper whether touch should do anything right now.
@@ -155,7 +161,7 @@ function SetupScreen({ onSaved }) {
       .from("autos")
       .select("auto_number")
       .then(({ data }) => {
-        if (!touchedRef.current) setValue(nextAutoNumber(data || []));
+        if (!touchedRef.current) setValue(nextAutoNumber(data || [], nativeInfo()?.isTv ? "TV" : "AUTO"));
       });
   }, []);
 
@@ -246,6 +252,7 @@ function Player({ autoNumber, onRenumbered }) {
     playError: null,
     cacheNames: [],
     probe: null,
+    tv: null,
     now: new Date(),
   });
 
@@ -331,18 +338,31 @@ function Player({ autoNumber, onRenumbered }) {
       if (!navigator.onLine) return;
       uploadPendingFixes();
       const battery = await readBattery();
-      await supabase
+      const row = {
+        auto_number: autoNumber,
+        last_seen_at: new Date().toISOString(),
+        battery_level: battery.level,
+        battery_charging: battery.charging,
+        now_playing_title: nowPlayingRef.current,
+      };
+      // A TV also reports its advertising state for the admin's TVs page.
+      const tv = nativeInfo();
+      const tvFields = tv?.isTv
+        ? {
+            device_type: "tv",
+            ads_mode: tv.adsMode,
+            auto_start: tv.autoStart,
+            device_owner: tv.deviceOwner,
+            app_version: tv.appVersion,
+          }
+        : null;
+      const { error } = await supabase
         .from("autos")
-        .upsert(
-          {
-            auto_number: autoNumber,
-            last_seen_at: new Date().toISOString(),
-            battery_level: battery.level,
-            battery_charging: battery.charging,
-            now_playing_title: nowPlayingRef.current,
-          },
-          { onConflict: "auto_number" }
-        );
+        .upsert(tvFields ? { ...row, ...tvFields } : row, { onConflict: "auto_number" });
+      // A database without the TV columns yet still gets the basic beat.
+      if (error && tvFields) {
+        await supabase.from("autos").upsert(row, { onConflict: "auto_number" });
+      }
     }
     beat();
     const id = setInterval(() => !cancelled && beat(), HEARTBEAT_INTERVAL_MS);
@@ -602,6 +622,57 @@ function Player({ autoNumber, onRenumbered }) {
     refreshFromRow();
   }, [refreshFromRow]);
 
+  // --- TV control (lib/tvDevice.js): Android TVs only ----------------------
+  // Pairs this TV with its number, then runs whatever the admin's TVs page
+  // has queued — start ads, unlock, restart, unpair — acknowledging
+  // each step. One round at a time; on a tablet or in a browser it's a no-op.
+  const tvPairedRef = useRef(false);
+  const tvBusyRef = useRef(false);
+  const runTvControl = useCallback(async () => {
+    const info = nativeInfo();
+    if (!info?.isTv || !info.token || !navigator.onLine || tvBusyRef.current) return;
+    tvBusyRef.current = true;
+    try {
+      if (!tvPairedRef.current) {
+        tvPairedRef.current = await pairTv(supabase, autoNumber, info.token);
+        if (!tvPairedRef.current) {
+          setHud((h) => ({ ...h, tv: "pairing refused: another TV holds this number. Unpair it on the TVs page." }));
+          return;
+        }
+      }
+      const result = await pollTv({
+        supabase,
+        autoNumber,
+        token: info.token,
+        native: { info: nativeInfo, call: nativeCall },
+        reload: () => window.location.reload(),
+        forgetPairing: () => {
+          nativeCall("forgetPairing");
+          localStorage.removeItem(AUTO_KEY);
+          localStorage.removeItem(LABEL_KEY);
+          localStorage.removeItem(ADS_SNAPSHOT_KEY);
+        },
+      });
+      if (!result.paired) tvPairedRef.current = false;
+      const now = nativeInfo() || info;
+      setHud((h) => ({ ...h, tv: `${result.paired ? "paired" : "not paired"}, ${now.adsMode}` }));
+    } catch (err) {
+      setHud((h) => ({ ...h, tv: `control unavailable: ${err?.message || "error"}` }));
+    } finally {
+      tvBusyRef.current = false;
+    }
+  }, [autoNumber]);
+
+  useEffect(() => {
+    runTvControl();
+    const id = setInterval(runTvControl, TV_POLL_INTERVAL_MS);
+    window.addEventListener("online", runTvControl);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("online", runTvControl);
+    };
+  }, [runTvControl]);
+
   // The real trigger: sync the moment admin submits an ad (add/edit/pause/
   // delete), instead of waiting on a timer. Plain Realtime Broadcast, not
   // postgres_changes — works with the anon key out of the box, no Supabase
@@ -616,6 +687,9 @@ function Player({ autoNumber, onRenumbered }) {
       .on("broadcast", { event: "renumber" }, ({ payload }) => {
         if (payload?.from === autoNumber) applyRenumber(payload.to);
       })
+      .on("broadcast", { event: "command" }, ({ payload }) => {
+        if (payload?.auto_number === autoNumber) runTvControl();
+      })
       .subscribe((status) => {
         // Fires on the first join and again every time the connection comes
         // back after dropping — which in a moving auto is all day. Broadcasts
@@ -623,9 +697,10 @@ function Player({ autoNumber, onRenumbered }) {
         if (status !== "SUBSCRIBED") return;
         sync();
         refreshFromRow();
+        runTvControl();
       });
     return () => supabase.removeChannel(channel);
-  }, [sync, autoNumber, refreshFromRow, applyRenumber]);
+  }, [sync, autoNumber, refreshFromRow, applyRenumber, runTvControl]);
 
   // Re-check which ads are time-active once a minute, offline-safe.
   useEffect(() => {
@@ -889,6 +964,12 @@ function Hud({ autoNumber, hud, current, playlistLength, onClose }) {
         <span>cache versions</span>
         <span>{hud.cacheNames.length ? hud.cacheNames.join(", ") : "—"}</span>
       </div>
+      {hud.tv && (
+        <div className="hud__row hud__row--wrap">
+          <span>tv control</span>
+          <span>{hud.tv}</span>
+        </div>
+      )}
       {hud.probe && (
         <div className="hud__row hud__row--wrap">
           <span>source probe</span>

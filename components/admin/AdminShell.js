@@ -16,6 +16,7 @@ const adminLinks = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/drivers", label: "Drivers", countKey: "drivers" },
   { href: "/admin/autos", label: "Autos", countKey: "autos" },
+  { href: "/admin/tvs", label: "TVs" },
   { href: "/admin/history", label: "History" },
   { href: "/admin/reports", label: "Reports" },
 ];
