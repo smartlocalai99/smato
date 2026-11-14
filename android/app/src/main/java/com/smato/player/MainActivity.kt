@@ -20,7 +20,11 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
+import android.net.http.SslError
+import android.webkit.ConsoleMessage
 import android.webkit.GeolocationPermissions
+import android.webkit.SslErrorHandler
+import android.webkit.WebResourceResponse
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
@@ -32,13 +36,19 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
+import android.widget.VideoView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -80,6 +90,25 @@ class MainActivity : AppCompatActivity() {
     }
     private val recentKeys = ArrayDeque<Pair<Int, Long>>()
 
+    // Whether the web player's script is actually running (it says so via
+    // onPageAlive). If not within PAGE_ALIVE_TIMEOUT_MS, the screen says
+    // why and the built-in backup player takes over (NativePlayer.kt).
+    private var pageAlive = false
+    private var lastLoadError: String? = null
+    private var lastScriptError: String? = null
+    private var nativePlayer: NativePlayer? = null
+    private lateinit var nativeStage: View
+    private lateinit var diagnostics: TextView
+    private val pageWatchdog = Runnable { if (!pageAlive) startBackupPlayer() }
+    private val hideDiagnostics = Runnable { diagnostics.visibility = View.GONE }
+    private val refreshDiagnostics = object : Runnable {
+        override fun run() {
+            if (diagnostics.visibility != View.VISIBLE) return
+            diagnostics.text = diagnosticsText()
+            mainHandler.postDelayed(this, 5_000)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -91,6 +120,8 @@ class MainActivity : AppCompatActivity() {
         webView = findViewById(R.id.webview)
         setupOverlay = findViewById(R.id.setup_overlay)
         urlInput = findViewById(R.id.url_input)
+        nativeStage = findViewById(R.id.native_stage)
+        diagnostics = findViewById(R.id.diagnostics)
 
         setupWebView()
         syncHomeAlias()
@@ -110,6 +141,78 @@ class MainActivity : AppCompatActivity() {
         } else {
             webView.loadUrl(saved)
         }
+        mainHandler.postDelayed(pageWatchdog, PAGE_ALIVE_TIMEOUT_MS)
+    }
+
+    override fun onDestroy() {
+        nativePlayer?.release()
+        nativePlayer = null
+        mainHandler.removeCallbacksAndMessages(null)
+        super.onDestroy()
+    }
+
+    // The web player didn't start: say why on screen and play the ads with
+    // the built-in player. The WebView keeps retrying underneath; the moment
+    // the page comes alive it takes over again (onPageAlive).
+    private fun startBackupPlayer() {
+        if (nativePlayer == null) {
+            nativeStage.visibility = View.VISIBLE
+            nativePlayer = NativePlayer(
+                this,
+                findViewById<VideoView>(R.id.native_video),
+                findViewById<ImageView>(R.id.native_image)
+            ).also { it.start() }
+        }
+        showDiagnostics(DIAGNOSTICS_VISIBLE_MS)
+    }
+
+    private fun stopBackupPlayer() {
+        nativePlayer?.release()
+        nativePlayer = null
+        nativeStage.visibility = View.GONE
+        diagnostics.visibility = View.GONE
+    }
+
+    private fun showDiagnostics(forMs: Long) {
+        diagnostics.text = diagnosticsText()
+        diagnostics.visibility = View.VISIBLE
+        mainHandler.removeCallbacks(refreshDiagnostics)
+        mainHandler.postDelayed(refreshDiagnostics, 5_000)
+        mainHandler.removeCallbacks(hideDiagnostics)
+        mainHandler.postDelayed(hideDiagnostics, forMs)
+    }
+
+    private fun diagnosticsText(): String {
+        val reason = lastLoadError ?: lastScriptError ?: if (pageAlive) {
+            "none: the player page is running."
+        } else {
+            "the page loaded but its script didn't start (the TV's web engine may be too old)."
+        }
+        val time = SimpleDateFormat("d MMM yyyy, HH:mm", Locale.US).format(Date())
+        val lines = mutableListOf(
+            if (pageAlive) "SMATO player is running." else "SMATO couldn't start its player page.",
+            "Why: $reason",
+            "TV web engine: ${webEngineVersion()}",
+            "Date and time on this TV: $time (a wrong date blocks secure websites)",
+            "Android ${Build.VERSION.RELEASE}, app $appVersion"
+        )
+        nativePlayer?.let { lines += "Built-in player: ${it.status}" }
+        return lines.joinToString("\n")
+    }
+
+    private fun webEngineVersion(): String {
+        val fromPackage = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WebView.getCurrentWebViewPackage()?.let { "${it.packageName} ${it.versionName}" }
+            } else {
+                null
+            }
+        } catch (error: Exception) {
+            null
+        }
+        if (fromPackage != null) return fromPackage
+        val chrome = Regex("Chrome/([0-9.]+)").find(webView.settings.userAgentString ?: "")?.groupValues?.get(1)
+        return chrome?.let { "Chrome $it" } ?: "unknown"
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -294,6 +397,14 @@ class MainActivity : AppCompatActivity() {
             override fun onPermissionRequest(request: PermissionRequest?) {
                 request?.grant(request.resources)
             }
+
+            // Script errors, for the on-screen diagnostics.
+            override fun onConsoleMessage(message: ConsoleMessage?): Boolean {
+                if (message != null && message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                    lastScriptError = "script error: ${message.message().take(160)}"
+                }
+                return super.onConsoleMessage(message)
+            }
         }
 
         webView.webViewClient = object : WebViewClient() {
@@ -311,8 +422,33 @@ class MainActivity : AppCompatActivity() {
             ) {
                 super.onReceivedError(view, request, error)
                 if (request?.isForMainFrame == true) {
+                    lastLoadError = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        "couldn't load the page (${error?.description ?: "network error"}). Check the internet."
+                    } else {
+                        "couldn't load the page. Check the internet."
+                    }
                     mainHandler.postDelayed({ reload() }, RETRY_DELAY_MS)
                 }
+            }
+
+            override fun onReceivedHttpError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                errorResponse: WebResourceResponse?
+            ) {
+                super.onReceivedHttpError(view, request, errorResponse)
+                if (request?.isForMainFrame == true) {
+                    lastLoadError = "the server answered ${errorResponse?.statusCode ?: "with an error"}."
+                }
+            }
+
+            // Never accept a bad certificate; just say what happened. On a
+            // TV this is almost always a wrong date and time.
+            override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+                handler?.cancel()
+                lastLoadError = "the secure connection failed (certificate error ${error?.primaryError ?: "?"}). " +
+                    "Set the correct date and time on the TV."
+                mainHandler.postDelayed({ reload() }, RETRY_DELAY_MS)
             }
 
             override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
@@ -333,6 +469,18 @@ class MainActivity : AppCompatActivity() {
     // stop or start advertising mode — nothing beyond what the admin's TVs
     // page offers.
     private inner class ScreenBridge {
+        // The page's script is running; the web player takes over (again).
+        @JavascriptInterface
+        fun onPageAlive() {
+            runOnUiThread {
+                pageAlive = true
+                lastLoadError = null
+                lastScriptError = null
+                mainHandler.removeCallbacks(pageWatchdog)
+                stopBackupPlayer()
+            }
+        }
+
         @JavascriptInterface
         fun onPlayerReady() {
             runOnUiThread {
@@ -579,6 +727,7 @@ class MainActivity : AppCompatActivity() {
             "Exit advertising mode",
             if (autoStartOn) "Disable auto start" else "Enable auto start",
             "Return to TV home",
+            "Show diagnostics",
             "Cancel"
         )
         val title = if (DeviceState.pinHash(prefs) == null) {
@@ -605,6 +754,7 @@ class MainActivity : AppCompatActivity() {
                         Toast.makeText(this, text, Toast.LENGTH_LONG).show()
                     }
                     2 -> leaveToHome()
+                    3 -> showDiagnostics(DIAGNOSTICS_VISIBLE_MS)
                 }
             }
             .show()
@@ -675,7 +825,10 @@ class MainActivity : AppCompatActivity() {
         }
         prefs.edit().putString(KEY_URL, url).apply()
         hideSetup()
+        pageAlive = false
         webView.loadUrl(url)
+        mainHandler.removeCallbacks(pageWatchdog)
+        mainHandler.postDelayed(pageWatchdog, PAGE_ALIVE_TIMEOUT_MS)
     }
 
     // Kiosk mode: swallow the back button so the tablet never leaves the
@@ -695,6 +848,8 @@ class MainActivity : AppCompatActivity() {
         private const val TAP_WINDOW_MS = 3000L
         private val TAP_RESET_TOKEN = Any()
         private const val EMERGENCY_WINDOW_MS = 15_000L
+        private const val PAGE_ALIVE_TIMEOUT_MS = 25_000L
+        private const val DIAGNOSTICS_VISIBLE_MS = 90_000L
         private val EMERGENCY_SEQUENCE = listOf(
             KeyEvent.KEYCODE_DPAD_UP,
             KeyEvent.KEYCODE_DPAD_UP,

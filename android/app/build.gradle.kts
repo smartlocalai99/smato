@@ -14,8 +14,18 @@ android {
         // service workers / Cache Storage regardless of what this app does.
         minSdk = 21
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
+
+        // For the built-in backup player (NativePlayer.kt). The publishable
+        // key is the same public one the website ships to every browser;
+        // it can only do what the database's row rules allow anonymously.
+        buildConfigField("String", "SUPABASE_URL", "\"https://jkbsbadtejlpizohdyav.supabase.co\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable_MT2aikm_dm72sML7MUqTtg_ZphV-9sx\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {

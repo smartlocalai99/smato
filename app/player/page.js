@@ -94,11 +94,21 @@ export default function PlayerPage() {
   const [autoNumber, setAutoNumber] = useState(null);
 
   useEffect(() => {
+    // Tells the Android app this page's script is running. Without it the
+    // app assumes the TV's web engine can't run the player, shows why on
+    // screen, and plays the ads with its own built-in player instead.
+    try {
+      window.AndroidNative?.onPageAlive?.();
+    } catch {
+      // Older app builds don't have this — nothing to tell.
+    }
     const saved = typeof window !== "undefined" ? localStorage.getItem(AUTO_KEY) : null;
     setAutoNumber(saved || "");
   }, []);
 
-  if (autoNumber === null) return null;
+  // Rendered on the server too, so a screen stuck on this (rather than plain
+  // black) means the device couldn't run the page's script.
+  if (autoNumber === null) return <div className="player-loading">Loading SMATO…</div>;
   if (!autoNumber) return <SetupScreen onSaved={setAutoNumber} />;
   // Keyed by number, so a renumber from the admin restarts the player clean.
   return <Player key={autoNumber} autoNumber={autoNumber} onRenumbered={setAutoNumber} />;
