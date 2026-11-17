@@ -47,6 +47,10 @@ jobs:
         run: |
           gradle :app:assembleDebug :tv:assembleDebug --no-daemon
           cp tv/build/outputs/apk/debug/tv-debug.apk smato-tv.apk
+          # What SMATO Ads checks to update itself (android/tv Updater.kt).
+          code=$(grep -oE 'versionCode = [0-9]+' tv/build.gradle.kts | grep -oE '[0-9]+')
+          printf '{"versionCode": %s}\n' "$code" > smato-tv.json
+          cat smato-tv.json
 
       - uses: actions/upload-artifact@v4
         with:
@@ -66,5 +70,5 @@ jobs:
             app-debug.apk.
           allowUpdates: true
           replacesArtifacts: true
-          artifacts: android/app/build/outputs/apk/debug/app-debug.apk,android/smato-tv.apk
+          artifacts: android/app/build/outputs/apk/debug/app-debug.apk,android/smato-tv.apk,android/smato-tv.json
           token: ${{ secrets.GITHUB_TOKEN }}

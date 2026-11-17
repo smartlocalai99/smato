@@ -14,8 +14,8 @@ android {
         applicationId = "com.smato.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         // The same public publishable key the website ships to every
         // browser; it can only read what the database's row rules allow.
@@ -45,4 +45,9 @@ android {
     lint {
         abortOnError = false
     }
+}
+
+dependencies {
+    // FileProvider, to hand a downloaded update to Android's installer.
+    implementation("androidx.core:core:1.13.1")
 }

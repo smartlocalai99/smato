@@ -1,0 +1,23 @@
+name: Keep the APK signing key
+
+# Every APK update has to be signed with the same key as the installed app,
+# or Android refuses it ("App not installed"). The build keeps that key in a
+# GitHub Actions cache (android-build.yml), and GitHub deletes caches that go
+# unused for 7 days — so with no app changes for a week, the next build
+# would quietly sign with a brand-new key. Touching the cache weekly keeps
+# the same key forever.
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  touch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore the signing key cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
+          fail-on-cache-miss: false

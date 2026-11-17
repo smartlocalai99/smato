@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
@@ -12,6 +13,7 @@ import android.widget.VideoView
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -25,6 +27,8 @@ import java.util.concurrent.Executors
 // another, forever. Each file is downloaded once and kept on the TV, so it
 // keeps playing without internet; the list is checked again every 15
 // minutes. Videos play directly through Android — no web engine involved.
+// Playing starts as soon as the first file is in, smallest first; an
+// interrupted download picks up where it stopped.
 class AdPlayer(
     private val activity: Activity,
     private val video: VideoView,
@@ -32,6 +36,7 @@ class AdPlayer(
     private val status: TextView
 ) {
     private data class Ad(val file: File, val isImage: Boolean)
+    private data class Wanted(val path: String, val isImage: Boolean, val bytes: Long)
 
     private val handler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
@@ -102,6 +107,18 @@ class AdPlayer(
         }
     }
 
+    // A first ad is ready while the rest are still downloading: start
+    // playing (or extend what's playing) instead of waiting for them all.
+    private fun offerReady(ready: List<Ad>) {
+        if (!running || ready.isEmpty()) return
+        val wasEmpty = playlist.isEmpty()
+        playlist = ready
+        if (wasEmpty) {
+            index = 0
+            playCurrent()
+        }
+    }
+
     // Background thread: today's "All autos" ads, each file downloaded once;
     // files for ads that stopped running are removed.
     private fun syncAds(): List<Ad> {
@@ -119,26 +136,31 @@ class AdPlayer(
         }
 
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val wanted = mutableListOf<Pair<String, Boolean>>()
+        val wanted = mutableListOf<Wanted>()
         for (i in 0 until rows.length()) {
             val row = rows.getJSONObject(i)
             val start = if (row.isNull("start_date")) null else row.getString("start_date")
             val end = if (row.isNull("end_date")) null else row.getString("end_date")
             if (start != null && today < start) continue
             if (end != null && today > end) continue
-            wanted += row.getString("file_path") to (row.optString("media_type") == "image")
+            wanted += Wanted(
+                row.getString("file_path"),
+                row.optString("media_type") == "image",
+                row.optLong("file_size", 0L)
+            )
         }
 
-        val ads = mutableListOf<Ad>()
-        wanted.forEachIndexed { i, (path, isImage) ->
-            val name = path.replace("/", "_")
-            val file = File(dir, name)
-            if (!file.exists()) {
-                handler.post { if (playlist.isEmpty()) say("Downloading ads… (${i + 1} of ${wanted.size})") }
-                download(path, file)
-            }
-            ads += Ad(file, isImage)
+        // Download smallest first so something is on screen sooner; the
+        // playlist itself keeps the dashboard's order.
+        val ready = mutableMapOf<String, Ad>()
+        wanted.sortedBy { it.bytes }.forEachIndexed { i, item ->
+            val file = File(dir, item.path.replace("/", "_"))
+            if (!file.exists()) download(item, file, i + 1, wanted.size)
+            ready[item.path] = Ad(file, item.isImage)
+            val soFar = wanted.mapNotNull { ready[it.path] }
+            handler.post { offerReady(soFar) }
         }
+        val ads = wanted.mapNotNull { ready[it.path] }
 
         val keep = ads.map { it.file.name }.toSet()
         dir.listFiles()?.forEach { if (it.name !in keep) it.delete() }
@@ -146,20 +168,54 @@ class AdPlayer(
         return ads
     }
 
-    private fun download(path: String, target: File) {
-        val encoded = path.split("/").joinToString("/") { URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
+    // Downloads into <name>.part, continuing from whatever an interrupted
+    // attempt already saved (an HTTP Range request), and shows progress
+    // while nothing is playing yet.
+    private fun download(item: Wanted, target: File, number: Int, total: Int) {
+        val encoded = item.path.split("/").joinToString("/") { URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
+        val part = File(target.path + ".part")
+        val already = if (part.exists()) part.length() else 0L
         val connection = URL("${BuildConfig.SUPABASE_URL}/storage/v1/object/public/ads/$encoded")
             .openConnection() as HttpURLConnection
         connection.connectTimeout = 15_000
         connection.readTimeout = 30_000
-        val part = File(target.path + ".part")
+        if (already > 0) connection.setRequestProperty("Range", "bytes=$already-")
         try {
-            connection.inputStream.use { input -> part.outputStream().use { input.copyTo(it) } }
+            val code = connection.responseCode
+            if (code == 416 && already > 0) {
+                // Nothing left to fetch: the earlier attempt had it all.
+                if (!part.renameTo(target)) throw IOException("couldn't save ${target.name}")
+                return
+            }
+            if (code !in 200..299) throw IOException("the server answered $code")
+            val resuming = already > 0 && code == 206
+            var done = if (resuming) already else 0L
+            val of = if (item.bytes > 0) " of ${megabytes(item.bytes)}" else ""
+            var shownAt = 0L
+            connection.inputStream.use { input ->
+                FileOutputStream(part, resuming).use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        output.write(buffer, 0, read)
+                        done += read
+                        val now = SystemClock.uptimeMillis()
+                        if (now - shownAt > 1_000) {
+                            shownAt = now
+                            val text = "Downloading ads… ($number of $total)\n\n${megabytes(done)}$of"
+                            handler.post { if (playlist.isEmpty()) say(text) }
+                        }
+                    }
+                }
+            }
         } finally {
             connection.disconnect()
         }
         if (!part.renameTo(target)) throw IOException("couldn't save ${target.name}")
     }
+
+    private fun megabytes(bytes: Long) = String.format(Locale.US, "%.1f MB", bytes / 1_000_000.0)
 
     private fun savePlaylist(ads: List<Ad>) {
         val list = JSONArray()
@@ -229,6 +285,7 @@ class AdPlayer(
         index = if (playlist.isEmpty()) 0 else (index + 1) % playlist.size
         playCurrent()
     }
+
 
     // Scales big photos down to the screen so they can't run the TV out of memory.
     private fun decodeForScreen(file: File) = try {

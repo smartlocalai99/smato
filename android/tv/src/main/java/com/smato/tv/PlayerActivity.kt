@@ -18,6 +18,7 @@ import android.widget.VideoView
 class PlayerActivity : Activity() {
 
     private lateinit var player: AdPlayer
+    private lateinit var updater: Updater
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,21 +45,28 @@ class PlayerActivity : Activity() {
         setContentView(root)
 
         player = AdPlayer(this, video, image, status)
+        updater = Updater(this) { message ->
+            status.text = message
+            status.visibility = View.VISIBLE
+        }
     }
 
     override fun onResume() {
         super.onResume()
         hideSystemBars()
         player.start()
+        updater.start()
     }
 
     override fun onPause() {
         player.pause()
+        updater.stop()
         super.onPause()
     }
 
     override fun onDestroy() {
         player.release()
+        updater.release()
         super.onDestroy()
     }
 
