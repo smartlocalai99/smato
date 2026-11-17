@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import TvCard from "@/components/admin/TvCard";
-import { isPending, latestByDevice, needsTvSetup } from "@/lib/tvAdmin";
+import { claimTvCode, isPending, latestByDevice, needsTvSetup } from "@/lib/tvAdmin";
 
 // Quick while a command is on its way, so its progress shows as the TV
 // acknowledges each step; slow otherwise. Never while the page is hidden.
@@ -83,9 +83,11 @@ export default function TvsPage() {
       <header className="mb-5 sm:mb-6">
         <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">TVs</h1>
         <p className="mt-1 max-w-xl text-text-dim">
-          Smart TVs running SMATO. Start or stop advertising mode, and unlock a TV to hand it back to normal use.
+          Smart TVs playing your ads. Link a new one with the code on its screen.
         </p>
       </header>
+
+      {!loading && !setupNeeded && <AddTvForm tvs={tvs} onAdded={load} />}
 
       {loading ? (
         <p className="text-sm text-text-dim" role="status">Loading TVs…</p>
@@ -129,13 +131,98 @@ export default function TvsPage() {
         </>
       ) : (
         <div className="rounded-2xl border border-dashed border-line p-8 text-sm leading-relaxed text-text-dim">
-          <p className="font-semibold text-text">No TVs yet.</p>
+          <p className="font-semibold text-text">No TVs linked yet.</p>
           <p className="mt-1">
-            Install the latest SMATO APK on an Android TV and open it. It suggests a number like TV-01; save it, and the
-            TV appears here within a few minutes. It plays ads full screen and locked; Unlock TV hands it back.
+            Install SMATO Ads (smato-tv.apk) on the TV and open it. A 6-digit code shows in the corner; enter it above
+            with a name, and the TV appears here.
           </p>
         </div>
       )}
     </main>
+  );
+}
+
+// TV-01, TV-02, … — the next unused name, as a suggestion.
+function nextTvName(tvs) {
+  const used = tvs.map((t) => /^TV-(\d+)$/.exec(t.auto_number)).filter(Boolean).map((m) => parseInt(m[1], 10));
+  return `TV-${String((used.length ? Math.max(...used) : 0) + 1).padStart(2, "0")}`;
+}
+
+// Linking a TV: the code SMATO Ads shows on screen, plus a name for it.
+function AddTvForm({ tvs, onAdded }) {
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const finalName = (name.trim() || nextTvName(tvs)).toUpperCase();
+    if (code.length !== 6) {
+      setStatus({ type: "error", text: "Enter the 6-digit code shown on the TV." });
+      return;
+    }
+    setBusy(true);
+    setStatus(null);
+    try {
+      const saved = await claimTvCode(supabase, code, finalName);
+      setStatus({ type: "ok", text: `Linked as ${saved}. The TV confirms within a few seconds.` });
+      setCode("");
+      setName("");
+      onAdded();
+    } catch (err) {
+      setStatus({ type: "error", text: err.message || "Couldn't link that TV." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mb-5 rounded-2xl border border-line bg-panel p-4 sm:p-5">
+      <h2 className="font-semibold">Add a TV</h2>
+      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="tvCode" className="text-xs text-text-faint">
+            Code on the TV
+          </label>
+          <input
+            id="tvCode"
+            inputMode="numeric"
+            autoComplete="off"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            placeholder="482913"
+            className="h-11 rounded-lg border border-line bg-ink px-3 font-mono text-lg tracking-widest text-text focus:border-teal focus:outline-none"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="tvName" className="text-xs text-text-faint">
+            Name
+          </label>
+          <input
+            id="tvName"
+            value={name}
+            autoCapitalize="characters"
+            onChange={(e) => setName(e.target.value)}
+            placeholder={nextTvName(tvs)}
+            className="h-11 rounded-lg border border-line bg-ink px-3 text-base text-text focus:border-teal focus:outline-none sm:text-sm"
+          />
+        </div>
+        <div className="flex items-end">
+          <button
+            type="submit"
+            disabled={busy}
+            className="min-h-11 w-full rounded-full bg-amber px-5 font-semibold text-on-amber hover:bg-[#ffc250] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          >
+            {busy ? "Linking…" : "Link TV"}
+          </button>
+        </div>
+      </div>
+      {status && (
+        <p className={`mt-3 text-sm ${status.type === "error" ? "text-red" : "text-green"}`} role="status">
+          {status.text}
+        </p>
+      )}
+    </form>
   );
 }

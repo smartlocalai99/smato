@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase", () => ({ notifyDeviceCommand: vi.fn() }));
 
-import { commandStage, latestByDevice, pinHash, validPin } from "@/lib/tvAdmin";
+import { claimTvCode, commandStage, isAdsApp, latestByDevice, pinHash, validPin } from "@/lib/tvAdmin";
 import { executeCommand, pollTv } from "@/lib/tvDevice";
 
 const NOW = new Date("2026-11-14T10:00:00Z");
@@ -149,5 +149,24 @@ describe("recovery PIN", () => {
 
   it("hashes exactly the way the TV checks it offline (smato-pin:<pin>, SHA-256)", async () => {
     expect(await pinHash("1234")).toBe("ea1b7f45a2f01b64ef5759ab904507f24bc3c5bf51b8b1897f2e8c45377df488");
+  });
+});
+
+describe("linking a SMATO Ads TV", () => {
+  it("recognises TVs running SMATO Ads, which only get Restart and Unpair", () => {
+    expect(isAdsApp({ app_version: "SMATO Ads 1.2" })).toBe(true);
+    expect(isAdsApp({ app_version: "1.1" })).toBe(false);
+    expect(isAdsApp({})).toBe(false);
+  });
+
+  it("claims the code shown on the TV under the given name", async () => {
+    const rpc = vi.fn(async () => ({ data: "TV-01", error: null }));
+    await expect(claimTvCode({ rpc }, " 482 913 ", "TV-01")).resolves.toBe("TV-01");
+    expect(rpc).toHaveBeenCalledWith("tv_claim_code", { p_code: "482913", p_name: "TV-01" });
+  });
+
+  it("passes on the database's reason when a code is wrong", async () => {
+    const rpc = vi.fn(async () => ({ data: null, error: new Error("That code isn't valid.") }));
+    await expect(claimTvCode({ rpc }, "000000", "TV-02")).rejects.toThrow("That code isn't valid.");
   });
 });

@@ -7,6 +7,7 @@ import { timeAgo } from "@/lib/autoStatus";
 import {
   cancelCommand,
   commandStage,
+  isAdsApp,
   isOnline,
   isPending,
   saveRecoveryPin,
@@ -40,6 +41,12 @@ const CONFIRM = {
     body: "The TV is unlocked the same way, then forgets this pairing. It stops taking commands from the dashboard until it's set up again.",
     action: "Unpair TV",
   },
+  // A SMATO Ads TV has nothing locked; unpairing only unlinks it.
+  unpairAds: {
+    title: "Unpair this TV?",
+    body: "The TV keeps playing the All-autos ads but is no longer linked to your dashboard. It shows a new code you can use to link it again.",
+    action: "Unpair TV",
+  },
 };
 
 function Chip({ tone, children }) {
@@ -64,6 +71,7 @@ export default function TvCard({ device, latest, secrets, onChange }) {
   const pending = isPending(latest);
   const stage = commandStage(latest, device);
   const unlocked = device.ads_mode === "unlocked";
+  const adsApp = isAdsApp(device);
 
   async function run(command, payload) {
     setBusy(true);
@@ -119,40 +127,59 @@ export default function TvCard({ device, latest, secrets, onChange }) {
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Chip tone={online ? "good" : "quiet"}>{online ? "Online" : "Offline"}</Chip>
-          {device.ads_mode && (
+          {!adsApp && device.ads_mode && (
             <Chip tone={unlocked ? "warn" : "good"}>{unlocked ? "Unlocked" : "Advertising"}</Chip>
           )}
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {unlocked ? (
-          <button type="button" className={primaryClass} disabled={busy || pending} onClick={() => run("lock")}>
-            Start ads
-          </button>
-        ) : (
-          <button
-            type="button"
-            className={primaryClass}
-            disabled={busy || pending}
-            onClick={() => setConfirming("unlock")}
-          >
-            Unlock TV
-          </button>
-        )}
-        {!unlocked && (
-          <button type="button" className={secondaryClass} disabled={busy || pending} onClick={() => run("restart")}>
-            Restart ads
-          </button>
-        )}
-        {unlocked && (
-          <p className="self-center text-xs text-text-dim">
-            Start ads reaches the TV next time SMATO is open on it.
+      {adsApp ? (
+        <>
+          <p className="text-sm text-text-dim">
+            {device.now_playing_title ? (
+              <>
+                Playing <span className="font-semibold text-text">{device.now_playing_title}</span>
+              </>
+            ) : (
+              "Nothing playing right now"
+            )}
           </p>
-        )}
-      </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={primaryClass} disabled={busy || pending} onClick={() => run("restart")}>
+              Restart ads
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {unlocked ? (
+            <button type="button" className={primaryClass} disabled={busy || pending} onClick={() => run("lock")}>
+              Start ads
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={primaryClass}
+              disabled={busy || pending}
+              onClick={() => setConfirming("unlock")}
+            >
+              Unlock TV
+            </button>
+          )}
+          {!unlocked && (
+            <button type="button" className={secondaryClass} disabled={busy || pending} onClick={() => run("restart")}>
+              Restart ads
+            </button>
+          )}
+          {unlocked && (
+            <p className="self-center text-xs text-text-dim">
+              Start ads reaches the TV next time SMATO is open on it.
+            </p>
+          )}
+        </div>
+      )}
 
-      {!unlocked && (
+      {!adsApp && !unlocked && (
         <p className="text-xs text-text-dim">
           Full-screen kiosk: starts on its own after a restart, Home and Back stay in SMATO.
           {device.device_owner === false && " This TV isn't a device owner, so it uses Android screen pinning."}
@@ -180,27 +207,29 @@ export default function TvCard({ device, latest, secrets, onChange }) {
         </div>
       )}
 
-      <form onSubmit={savePin} className="flex flex-col gap-1.5">
-        <label htmlFor={`pin-${device.id}`} className="text-xs text-text-faint">
-          Recovery PIN for the remote&rsquo;s emergency menu {secrets?.pinSet ? "(set)" : "(not set)"}
-        </label>
-        <div className="flex gap-2">
-          <input
-            id={`pin-${device.id}`}
-            type="password"
-            inputMode="numeric"
-            autoComplete="off"
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
-            placeholder={secrets?.pinSet ? "New PIN" : "4 to 8 digits"}
-            className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-ink px-3 text-base text-text focus:border-teal focus:outline-none sm:text-sm"
-          />
-          <button type="submit" className={`${secondaryClass} min-h-10`}>
-            Save PIN
-          </button>
-        </div>
-        {pinStatus && <p className="text-xs text-text-dim">{pinStatus}</p>}
-      </form>
+      {!adsApp && (
+        <form onSubmit={savePin} className="flex flex-col gap-1.5">
+          <label htmlFor={`pin-${device.id}`} className="text-xs text-text-faint">
+            Recovery PIN for the remote&rsquo;s emergency menu {secrets?.pinSet ? "(set)" : "(not set)"}
+          </label>
+          <div className="flex gap-2">
+            <input
+              id={`pin-${device.id}`}
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
+              placeholder={secrets?.pinSet ? "New PIN" : "4 to 8 digits"}
+              className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-ink px-3 text-base text-text focus:border-teal focus:outline-none sm:text-sm"
+            />
+            <button type="submit" className={`${secondaryClass} min-h-10`}>
+              Save PIN
+            </button>
+          </div>
+          {pinStatus && <p className="text-xs text-text-dim">{pinStatus}</p>}
+        </form>
+      )}
 
       {error && (
         <p className="text-sm text-red" role="alert">
@@ -212,7 +241,7 @@ export default function TvCard({ device, latest, secrets, onChange }) {
         <button
           type="button"
           disabled={busy || pending}
-          onClick={() => setConfirming("unpair")}
+          onClick={() => setConfirming(adsApp ? "unpairAds" : "unpair")}
           className="min-h-10 rounded-full px-3 text-sm font-medium text-text-faint transition-colors hover:bg-red/10 hover:text-red disabled:cursor-not-allowed disabled:opacity-50"
         >
           Unpair
@@ -232,7 +261,12 @@ export default function TvCard({ device, latest, secrets, onChange }) {
               <button type="button" className={secondaryClass} onClick={() => setConfirming(null)}>
                 Keep it as it is
               </button>
-              <button type="button" className={primaryClass} disabled={busy} onClick={() => run(confirming)}>
+              <button
+                type="button"
+                className={primaryClass}
+                disabled={busy}
+                onClick={() => run(confirming === "unpairAds" ? "unpair" : confirming)}
+              >
                 {confirm.action}
               </button>
             </div>

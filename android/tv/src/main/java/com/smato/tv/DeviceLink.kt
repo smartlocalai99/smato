@@ -1,0 +1,211 @@
+package com.smato.tv
+
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+import java.util.UUID
+import java.util.concurrent.Executors
+
+// Links this TV to the SMATO dashboard on the admin's phone, and keeps it
+// linked: until linked it offers a 6-digit code (tv_request_code) and waits
+// for an admin to enter it on the TVs page (tv_code_status). Once linked it
+// checks in every few minutes (online, what's playing) and carries out the
+// dashboard's commands — Restart ads, Unpair — acknowledging each one
+// (device_poll / device_ack). See docs/sql/tv-pairing.sql and tv-control.sql.
+class DeviceLink(
+    context: Context,
+    private val nowPlaying: () -> String?,
+    private val onChange: () -> Unit,
+    private val onRestart: () -> Unit
+) {
+    private val prefs = context.getSharedPreferences("smato_tv", Context.MODE_PRIVATE)
+    private val handler = Handler(Looper.getMainLooper())
+    private val executor = Executors.newSingleThreadExecutor()
+    private val tick = Runnable { step() }
+    private var codeOffered = false
+    private var lastBeat = 0L
+    private var running = false
+
+    // The name an admin gave this TV, once linked.
+    val linkedName: String? get() = prefs.getString(KEY_NAME, null)
+
+    // The code to show while not linked yet.
+    val code: String? get() = if (linkedName == null && codeOffered) prefs.getString(KEY_CODE, null) else null
+
+    private val token: String
+        get() = prefs.getString(KEY_TOKEN, null) ?: (UUID.randomUUID().toString() + UUID.randomUUID().toString())
+            .also { prefs.edit().putString(KEY_TOKEN, it).apply() }
+
+    fun start() {
+        if (running) return
+        running = true
+        handler.post(tick)
+    }
+
+    fun stop() {
+        running = false
+        handler.removeCallbacks(tick)
+    }
+
+    fun release() {
+        stop()
+        executor.shutdownNow()
+    }
+
+    private fun step() {
+        if (!running) return
+        executor.execute {
+            try {
+                if (linkedName == null) offerAndWait() else stayLinked()
+            } catch (error: Exception) {
+                // Offline or the server didn't answer; the next round tries again.
+            }
+            handler.postDelayed(tick, if (linkedName == null) UNLINKED_EVERY_MS else LINKED_EVERY_MS)
+        }
+    }
+
+    private fun offerAndWait() {
+        if (!codeOffered) {
+            // Keeps the same code across restarts while it's free; a taken
+            // one is swapped for a fresh one.
+            var candidate = prefs.getString(KEY_CODE, null) ?: newCode()
+            for (attempt in 0 until 5) {
+                val accepted = rpc("tv_request_code", JSONObject().put("p_code", candidate).put("p_token", token))
+                if (accepted == "true") {
+                    prefs.edit().putString(KEY_CODE, candidate).apply()
+                    codeOffered = true
+                    changed()
+                    break
+                }
+                candidate = newCode()
+            }
+            if (!codeOffered) return
+        }
+        val name = rpc("tv_code_status", JSONObject().put("p_code", prefs.getString(KEY_CODE, "")).put("p_token", token))
+        if (name.isNotBlank() && name != "null") {
+            prefs.edit().putString(KEY_NAME, name.trim('"')).remove(KEY_CODE).apply()
+            codeOffered = false
+            lastBeat = 0L
+            changed()
+            handler.post { onRestart() }
+            stayLinked()
+        }
+    }
+
+    private fun stayLinked() {
+        val name = linkedName ?: return
+        val now = System.currentTimeMillis()
+        if (now - lastBeat >= BEAT_EVERY_MS) {
+            checkIn(name)
+            lastBeat = now
+        }
+        val answer = rpc("device_poll", JSONObject().put("p_auto", name).put("p_token", token))
+        if (answer.isBlank() || answer == "null") {
+            // The dashboard no longer knows this TV (unpaired): offer a code again.
+            unlink()
+            return
+        }
+        val commands = JSONObject(answer).optJSONArray("commands") ?: JSONArray()
+        for (i in 0 until commands.length()) {
+            val command = commands.getJSONObject(i)
+            val id = command.getString("id")
+            ack(name, id, "received", null)
+            when (command.optString("command")) {
+                "restart" -> {
+                    handler.post { onRestart() }
+                    ack(name, id, "completed", "Ads restarted.")
+                }
+                "unpair" -> {
+                    ack(name, id, "completed", "Unpaired. The TV keeps playing and shows a new code.")
+                    unlink()
+                    return
+                }
+                "lock", "unlock" -> ack(name, id, "completed", "SMATO Ads doesn't lock the TV, so there was nothing to change.")
+                else -> ack(name, id, "failed", "SMATO Ads doesn't know that command.")
+            }
+        }
+    }
+
+    private fun unlink() {
+        prefs.edit().remove(KEY_NAME).apply()
+        codeOffered = false
+        changed()
+        handler.post { onRestart() }
+    }
+
+    private fun changed() {
+        handler.post { onChange() }
+    }
+
+    // Online status and what's on screen, for the dashboard's TVs page.
+    private fun checkIn(name: String) {
+        val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+            .apply { timeZone = TimeZone.getTimeZone("UTC") }
+            .format(Date())
+        val row = JSONObject()
+            .put("auto_number", name)
+            .put("last_seen_at", iso)
+            .put("now_playing_title", nowPlaying() ?: JSONObject.NULL)
+            .put("device_type", "tv")
+            .put("app_version", "SMATO Ads ${BuildConfig.VERSION_NAME}")
+        request(
+            "${BuildConfig.SUPABASE_URL}/rest/v1/autos?on_conflict=auto_number",
+            row.toString(),
+            "resolution=merge-duplicates,return=minimal"
+        )
+    }
+
+    private fun ack(name: String, id: String, status: String, detail: String?) {
+        rpc(
+            "device_ack",
+            JSONObject()
+                .put("p_auto", name)
+                .put("p_token", token)
+                .put("p_id", id)
+                .put("p_status", status)
+                .put("p_detail", detail ?: JSONObject.NULL)
+        )
+    }
+
+    private fun rpc(function: String, args: JSONObject): String =
+        request("${BuildConfig.SUPABASE_URL}/rest/v1/rpc/$function", args.toString(), null)
+
+    private fun request(url: String, body: String, prefer: String?): String {
+        val connection = URL(url).openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.doOutput = true
+        connection.connectTimeout = 15_000
+        connection.readTimeout = 20_000
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer ${BuildConfig.SUPABASE_KEY}")
+        connection.setRequestProperty("Content-Type", "application/json")
+        if (prefer != null) connection.setRequestProperty("Prefer", prefer)
+        return try {
+            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val code = connection.responseCode
+            if (code !in 200..299) throw IllegalStateException("server answered $code")
+            connection.inputStream.bufferedReader().use { it.readText() }.trim()
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun newCode() = (100000 + (Math.random() * 900000).toInt()).toString()
+
+    companion object {
+        private const val KEY_TOKEN = "device_token"
+        private const val KEY_CODE = "pairing_code"
+        private const val KEY_NAME = "linked_name"
+        private const val UNLINKED_EVERY_MS = 10_000L
+        private const val LINKED_EVERY_MS = 60_000L
+        private const val BEAT_EVERY_MS = 3 * 60 * 1000L
+    }
+}

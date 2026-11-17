@@ -33,10 +33,13 @@ class AdPlayer(
     private val activity: Activity,
     private val video: VideoView,
     private val image: ImageView,
-    private val status: TextView
+    private val status: TextView,
+    // The name this TV was linked under on the dashboard (DeviceLink), if
+    // any: ads sent to that name play here as well as "All autos" ones.
+    private val linkedName: () -> String?
 ) {
-    private data class Ad(val file: File, val isImage: Boolean)
-    private data class Wanted(val path: String, val isImage: Boolean, val bytes: Long)
+    private data class Ad(val file: File, val isImage: Boolean, val title: String)
+    private data class Wanted(val path: String, val isImage: Boolean, val bytes: Long, val title: String)
 
     private val handler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
@@ -48,6 +51,21 @@ class AdPlayer(
     private var failedInARow = 0
     private val advance = Runnable { next() }
     private val refreshTick = Runnable { refresh() }
+
+    // What's on screen right now, for the dashboard (read off the main thread).
+    @Volatile
+    var nowPlaying: String? = null
+        private set
+
+    // From the dashboard's Restart ads, or after linking/unlinking: fetch
+    // the list again and start from the first ad.
+    fun restart() {
+        if (!running) return
+        handler.removeCallbacks(refreshTick)
+        index = 0
+        playCurrent()
+        refresh()
+    }
 
     fun start() {
         if (running) return
@@ -61,6 +79,7 @@ class AdPlayer(
     // Leaving the app (Back, Home): stop playing and stop checking.
     fun pause() {
         running = false
+        nowPlaying = null
         handler.removeCallbacksAndMessages(null)
         video.stopPlayback()
     }
@@ -91,7 +110,8 @@ class AdPlayer(
                     playlist = fresh
                     if (playlist.isEmpty()) {
                         stopShowing()
-                        say("No ads are scheduled right now.\n\nAdd an ad for \"All autos\" in the SMATO dashboard.")
+                        val forThis = linkedName()?.let { " or for $it" } ?: ""
+                        say("No ads are scheduled right now.\n\nAdd an ad for \"All autos\"$forThis in the SMATO dashboard.")
                     } else if (wasEmpty || index >= playlist.size) {
                         index = 0
                         playCurrent()
@@ -119,11 +139,18 @@ class AdPlayer(
         }
     }
 
-    // Background thread: today's "All autos" ads, each file downloaded once;
-    // files for ads that stopped running are removed.
+    // Background thread: today's ads for "All autos" (and for this TV once
+    // linked), each file downloaded once; files for ads that stopped running
+    // are removed.
     private fun syncAds(): List<Ad> {
-        val query = "select=id,file_path,media_type,start_date,end_date,sort_order" +
-            "&active=eq.true&auto_number=is.null&order=sort_order"
+        val name = linkedName()
+        val target = if (name == null) {
+            "auto_number=is.null"
+        } else {
+            "or=(auto_number.is.null,auto_number.eq.${URLEncoder.encode(name, "UTF-8")})"
+        }
+        val query = "select=id,title,file_path,file_size,media_type,start_date,end_date,sort_order" +
+            "&active=eq.true&$target&order=sort_order"
         val connection = URL("${BuildConfig.SUPABASE_URL}/rest/v1/ads?$query").openConnection() as HttpURLConnection
         connection.setRequestProperty("apikey", BuildConfig.SUPABASE_KEY)
         connection.setRequestProperty("Authorization", "Bearer ${BuildConfig.SUPABASE_KEY}")
@@ -146,7 +173,8 @@ class AdPlayer(
             wanted += Wanted(
                 row.getString("file_path"),
                 row.optString("media_type") == "image",
-                row.optLong("file_size", 0L)
+                if (row.isNull("file_size")) 0L else row.optLong("file_size", 0L),
+                row.optString("title")
             )
         }
 
@@ -156,7 +184,7 @@ class AdPlayer(
         wanted.sortedBy { it.bytes }.forEachIndexed { i, item ->
             val file = File(dir, item.path.replace("/", "_"))
             if (!file.exists()) download(item, file, i + 1, wanted.size)
-            ready[item.path] = Ad(file, item.isImage)
+            ready[item.path] = Ad(file, item.isImage, item.title)
             val soFar = wanted.mapNotNull { ready[it.path] }
             handler.post { offerReady(soFar) }
         }
@@ -219,7 +247,7 @@ class AdPlayer(
 
     private fun savePlaylist(ads: List<Ad>) {
         val list = JSONArray()
-        ads.forEach { list.put(JSONObject().put("file", it.file.name).put("image", it.isImage)) }
+        ads.forEach { list.put(JSONObject().put("file", it.file.name).put("image", it.isImage).put("title", it.title)) }
         prefs.edit().putString("playlist", list.toString()).apply()
     }
 
@@ -228,13 +256,14 @@ class AdPlayer(
         (0 until list.length()).mapNotNull { i ->
             val item = list.getJSONObject(i)
             val file = File(dir, item.getString("file"))
-            if (file.exists()) Ad(file, item.optBoolean("image")) else null
+            if (file.exists()) Ad(file, item.optBoolean("image"), item.optString("title")) else null
         }
     } catch (error: Exception) {
         emptyList()
     }
 
     private fun stopShowing() {
+        nowPlaying = null
         handler.removeCallbacks(advance)
         video.stopPlayback()
         video.visibility = View.GONE
@@ -247,6 +276,7 @@ class AdPlayer(
         if (!running || playlist.isEmpty()) return
         if (index >= playlist.size) index = 0
         val ad = playlist[index]
+        nowPlaying = ad.title.ifBlank { null }
         say(null)
         if (ad.isImage) {
             video.stopPlayback()
