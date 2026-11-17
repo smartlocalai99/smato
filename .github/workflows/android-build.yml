@@ -40,14 +40,20 @@ jobs:
           path: ~/.android/debug.keystore
           key: android-debug-keystore-v1
 
-      - name: Build debug APK
+      # :app is the kiosk tablet player; :tv is SMATO Ads, the plain TV
+      # player (nothing locked), published as smato-tv.apk.
+      - name: Build debug APKs
         working-directory: android
-        run: gradle :app:assembleDebug --no-daemon
+        run: |
+          gradle :app:assembleDebug :tv:assembleDebug --no-daemon
+          cp tv/build/outputs/apk/debug/tv-debug.apk smato-tv.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: smato-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/smato-tv.apk
 
       - name: Publish to the "latest-apk" release
         uses: ncipollo/release-action@v1
@@ -55,9 +61,10 @@ jobs:
           tag: latest-apk
           name: smato — latest build
           body: >
-            Auto-built from the latest push to main. Download app-debug.apk
-            below and install it on the tablet.
+            Auto-built from the latest push to main. TVs: install smato-tv.apk
+            (SMATO Ads, plays the ads, locks nothing). Tablets: install
+            app-debug.apk.
           allowUpdates: true
           replacesArtifacts: true
-          artifacts: android/app/build/outputs/apk/debug/app-debug.apk
+          artifacts: android/app/build/outputs/apk/debug/app-debug.apk,android/smato-tv.apk
           token: ${{ secrets.GITHUB_TOKEN }}

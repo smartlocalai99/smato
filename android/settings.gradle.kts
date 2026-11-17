@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "smato"
-include(":app")
+include(":app", ":tv")
