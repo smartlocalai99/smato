@@ -25,8 +25,9 @@ import java.util.concurrent.Executors
 
 // Plays the ads scheduled for "All autos" in the SMATO dashboard, one after
 // another, forever. Each file is downloaded once and kept on the TV, so it
-// keeps playing without internet; the list is checked again every 15
-// minutes. Videos play directly through Android — no web engine involved.
+// keeps playing without internet; the list is checked again every 2
+// minutes, so ads changed in the dashboard reach the TV quickly and files
+// for removed ads are deleted. Videos play directly through Android — no web engine involved.
 // Playing starts as soon as the first file is in, smallest first; an
 // interrupted download picks up where it stopped.
 class AdPlayer(
@@ -334,7 +335,7 @@ class AdPlayer(
     }
 
     companion object {
-        private const val REFRESH_MS = 15 * 60 * 1000L
+        private const val REFRESH_MS = 2 * 60 * 1000L
         private const val RETRY_MS = 60 * 1000L
         private const val IMAGE_MS = 2 * 60 * 1000L
     }

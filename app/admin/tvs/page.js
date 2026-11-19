@@ -17,6 +17,7 @@ export default function TvsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [setupNeeded, setSetupNeeded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -80,11 +81,24 @@ export default function TvsPage() {
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
-      <header className="mb-5 sm:mb-6">
-        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">TVs</h1>
-        <p className="mt-1 max-w-xl text-text-dim">
-          Smart TVs playing your ads. Link a new one with the code on its screen.
-        </p>
+      <header className="mb-5 flex items-start justify-between gap-3 sm:mb-6">
+        <div>
+          <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">TVs</h1>
+          <p className="mt-1 max-w-xl text-text-dim">
+            Smart TVs playing your ads. Link a new one with the code on its screen.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setRefreshing(true);
+            load().finally(() => setRefreshing(false));
+          }}
+          disabled={refreshing}
+          className="min-h-10 flex-none rounded-full border border-line px-4 text-sm font-semibold hover:border-text-faint disabled:cursor-wait disabled:opacity-60"
+        >
+          {refreshing ? "Refreshing…" : "Refresh"}
+        </button>
       </header>
 
       {!loading && !setupNeeded && <AddTvForm tvs={tvs} onAdded={load} />}

@@ -14,8 +14,8 @@ android {
         applicationId = "com.smato.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "1.3"
 
         // The same public publishable key the website ships to every
         // browser; it can only read what the database's row rules allow.

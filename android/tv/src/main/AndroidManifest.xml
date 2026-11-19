@@ -26,6 +26,7 @@
         <activity
             android:name=".PlayerActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
@@ -33,6 +34,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+            <!-- Lets the TV use SMATO Ads as its Home app, where the TV allows
+                 choosing one: it then opens on every power on and Home press.
+                 Optional — AutoOpen.kt covers TVs that don't allow it. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 

@@ -44,8 +44,15 @@ const CONFIRM = {
   // A SMATO Ads TV has nothing locked; unpairing only unlinks it.
   unpairAds: {
     title: "Unpair this TV?",
-    body: "The TV keeps playing the All-autos ads but is no longer linked to your dashboard. It shows a new code you can use to link it again.",
+    body: "The TV keeps playing the All-autos ads but is no longer linked to your dashboard. It shows its code again, so you can link it again with the same number.",
     action: "Unpair TV",
+  },
+  // Removes the TV from the dashboard altogether (its commands and pairing
+  // go with it). A SMATO Ads TV keeps playing and shows its code again.
+  delete: {
+    title: "Delete this TV?",
+    body: "It disappears from your dashboard, along with its command history and any ads sent only to this TV (All-autos ads aren't affected). The TV itself isn't changed: a SMATO Ads TV keeps playing the All-autos ads and shows its code again, so you can link it later.",
+    action: "Delete TV",
   },
 };
 
@@ -72,6 +79,20 @@ export default function TvCard({ device, latest, secrets, onChange }) {
   const stage = commandStage(latest, device);
   const unlocked = device.ads_mode === "unlocked";
   const adsApp = isAdsApp(device);
+
+  async function remove() {
+    setBusy(true);
+    setError("");
+    try {
+      const { error: deleteError } = await supabase.from("autos").delete().eq("id", device.id);
+      if (deleteError) throw deleteError;
+      onChange();
+    } catch (err) {
+      setError(err.message || "Couldn't delete that TV.");
+      setBusy(false);
+      setConfirming(null);
+    }
+  }
 
   async function run(command, payload) {
     setBusy(true);
@@ -237,7 +258,7 @@ export default function TvCard({ device, latest, secrets, onChange }) {
         </p>
       )}
 
-      <div className="flex justify-end border-t border-line pt-2">
+      <div className="flex justify-end gap-1 border-t border-line pt-2">
         <button
           type="button"
           disabled={busy || pending}
@@ -245,6 +266,14 @@ export default function TvCard({ device, latest, secrets, onChange }) {
           className="min-h-10 rounded-full px-3 text-sm font-medium text-text-faint transition-colors hover:bg-red/10 hover:text-red disabled:cursor-not-allowed disabled:opacity-50"
         >
           Unpair
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setConfirming("delete")}
+          className="min-h-10 rounded-full px-3 text-sm font-medium text-text-faint transition-colors hover:bg-red/10 hover:text-red disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Delete TV
         </button>
       </div>
 
@@ -265,7 +294,9 @@ export default function TvCard({ device, latest, secrets, onChange }) {
                 type="button"
                 className={primaryClass}
                 disabled={busy}
-                onClick={() => run(confirming === "unpairAds" ? "unpair" : confirming)}
+                onClick={() =>
+                  confirming === "delete" ? remove() : run(confirming === "unpairAds" ? "unpair" : confirming)
+                }
               >
                 {confirm.action}
               </button>

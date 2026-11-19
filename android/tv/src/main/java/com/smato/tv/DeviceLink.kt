@@ -37,8 +37,13 @@ class DeviceLink(
     // The name an admin gave this TV, once linked.
     val linkedName: String? get() = prefs.getString(KEY_NAME, null)
 
-    // The code to show while not linked yet.
-    val code: String? get() = if (linkedName == null && codeOffered) prefs.getString(KEY_CODE, null) else null
+    // This TV's permanent 6-digit code: made on first start and kept for
+    // good, so the same number links it again after an unpair or delete.
+    val code: String
+        get() = prefs.getString(KEY_CODE, null) ?: newCode().also { prefs.edit().putString(KEY_CODE, it).apply() }
+
+    // Whether the server has accepted the code yet (it can be entered now).
+    val codeReady: Boolean get() = codeOffered
 
     private val token: String
         get() = prefs.getString(KEY_TOKEN, null) ?: (UUID.randomUUID().toString() + UUID.randomUUID().toString())
@@ -74,9 +79,9 @@ class DeviceLink(
 
     private fun offerAndWait() {
         if (!codeOffered) {
-            // Keeps the same code across restarts while it's free; a taken
-            // one is swapped for a fresh one.
-            var candidate = prefs.getString(KEY_CODE, null) ?: newCode()
+            // Keeps this TV's code; only if another TV already holds it is
+            // it swapped for a fresh one (and kept from then on).
+            var candidate = code
             for (attempt in 0 until 5) {
                 val accepted = rpc("tv_request_code", JSONObject().put("p_code", candidate).put("p_token", token))
                 if (accepted == "true") {
@@ -91,7 +96,7 @@ class DeviceLink(
         }
         val name = rpc("tv_code_status", JSONObject().put("p_code", prefs.getString(KEY_CODE, "")).put("p_token", token))
         if (name.isNotBlank() && name != "null") {
-            prefs.edit().putString(KEY_NAME, name.trim('"')).remove(KEY_CODE).apply()
+            prefs.edit().putString(KEY_NAME, name.trim('"')).apply()
             codeOffered = false
             lastBeat = 0L
             changed()

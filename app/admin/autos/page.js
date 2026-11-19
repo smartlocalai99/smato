@@ -19,6 +19,7 @@ export default function AutosPage() {
   const [drivers, setDrivers] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   // Only the first load shows "Loading autos…". Reloading after an action
   // keeps the cards where they are, so a phone doesn't jump back to the top.
@@ -50,11 +51,24 @@ export default function AutosPage() {
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
-      <header className="mb-5 sm:mb-6">
-        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Autos</h1>
-        <p className="mt-1 max-w-xl text-text-dim">
-          Every tablet in the fleet: who drives it, its SIM number, and its live status.
-        </p>
+      <header className="mb-5 flex items-start justify-between gap-3 sm:mb-6">
+        <div>
+          <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Autos</h1>
+          <p className="mt-1 max-w-xl text-text-dim">
+            Every tablet in the fleet: who drives it, its SIM number, and its live status.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setRefreshing(true);
+            load().finally(() => setRefreshing(false));
+          }}
+          disabled={refreshing}
+          className="min-h-10 flex-none rounded-full border border-line px-4 text-sm font-semibold hover:border-text-faint disabled:cursor-wait disabled:opacity-60"
+        >
+          {refreshing ? "Refreshing…" : "Refresh"}
+        </button>
       </header>
 
       <AddAutoForm onAdded={load} />

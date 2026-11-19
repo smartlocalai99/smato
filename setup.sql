@@ -457,7 +457,9 @@ grant execute on function device_ack(text, text, uuid, text, text) to anon, auth
 -- tv-control.sql first. Safe to re-run. Also included at the end of setup.sql.
 -- ---------------------------------------------------------------------------
 
--- Codes waiting to be claimed. Only the functions below touch this table.
+-- One code per TV: SMATO Ads keeps the same 6-digit code for good, so a TV
+-- can always be linked again with the number it shows. Only the functions
+-- below touch this table.
 create table if not exists device_pairing_codes (
   code text primary key,
   token_hash text not null,
@@ -468,9 +470,9 @@ create table if not exists device_pairing_codes (
 
 alter table device_pairing_codes enable row level security;
 
--- The TV offers a code, tied to the secret it generated. Its older
--- unclaimed codes and day-old leftovers are cleared. False means that code
--- is taken right now; the TV just picks another.
+-- The TV offers its code, tied to the secret it generated; any earlier row
+-- for the same TV is replaced. False means another TV already has that
+-- code; this one then picks a different one.
 create or replace function tv_request_code(p_code text, p_token text)
 returns boolean language plpgsql security definer set search_path = public as $$
 declare
@@ -478,8 +480,7 @@ declare
 begin
   if p_code !~ '^[0-9]{6}$' or length(coalesce(p_token, '')) < 16 then return false; end if;
   v_hash := encode(sha256(convert_to(p_token, 'UTF8')), 'hex');
-  delete from device_pairing_codes
-    where auto_number is null and (token_hash = v_hash or created_at < now() - interval '1 day');
+  delete from device_pairing_codes where token_hash = v_hash;
   insert into device_pairing_codes (code, token_hash) values (p_code, v_hash)
     on conflict (code) do nothing;
   return found;
@@ -511,7 +512,7 @@ begin
   if v_name = '' then raise exception 'Give the TV a name, like TV-01.'; end if;
 
   select token_hash into v_hash from device_pairing_codes
-    where code = btrim(p_code) and auto_number is null and created_at > now() - interval '1 day';
+    where code = btrim(p_code) and auto_number is null;
   if v_hash is null then
     raise exception 'That code isn''t valid. Check the 6-digit number on the TV screen.';
   end if;
