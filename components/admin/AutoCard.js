@@ -100,8 +100,21 @@ export default function AutoCard({ auto, autos, driver, onChange }) {
       await sendCommand(supabase, auto.auto_number, "unlock", { release: true });
       setUnlockStatus(
         autoStatus(auto) === "online"
-          ? "Sent. The tablet goes to its home screen within a few seconds."
+          ? "Sent. The SMATO menu opens on the tablet within a few seconds."
           : "Sent. The tablet is offline; it unlocks as soon as it's back online."
+      );
+    } catch (err) {
+      setUnlockStatus(err.message || "Couldn't send that to the tablet.");
+    }
+  }
+
+  // Brings smato back to the front and pins it again (after Unlock).
+  async function lockTablet() {
+    setUnlockStatus("Sending…");
+    try {
+      await sendCommand(supabase, auto.auto_number, "lock");
+      setUnlockStatus(
+        "Sent. smato comes back to the front; if Android asks to pin the app, tap OK on the tablet to lock it."
       );
     } catch (err) {
       setUnlockStatus(err.message || "Couldn't send that to the tablet.");
@@ -264,13 +277,22 @@ export default function AutoCard({ auto, autos, driver, onChange }) {
         </div>
         {auto.app_version && (
           <div className="mt-2">
-            <button
-              type="button"
-              onClick={() => setUnlockOpen(true)}
-              className={`${actionClass} w-full border border-line text-text hover:border-text-faint`}
-            >
-              Unlock tablet
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setUnlockOpen(true)}
+                className={`${actionClass} border border-line text-text hover:border-text-faint`}
+              >
+                Unlock tablet
+              </button>
+              <button
+                type="button"
+                onClick={lockTablet}
+                className={`${actionClass} border border-line text-text hover:border-text-faint`}
+              >
+                Lock tablet
+              </button>
+            </div>
             {unlockStatus && <p className="mt-1.5 text-xs text-text-dim">{unlockStatus}</p>}
           </div>
         )}
@@ -301,8 +323,9 @@ export default function AutoCard({ auto, autos, driver, onChange }) {
       <Modal open={unlockOpen} onClose={() => setUnlockOpen(false)} title={`Unlock ${auto.auto_number}?`}>
         <div className="flex flex-col gap-4">
           <p className="text-sm leading-relaxed text-text-dim">
-            The tablet leaves the ads and goes to its normal home screen, so Settings, Back and the pull-down
-            from the top work. It locks again by itself when the smato app is opened on it, or when it restarts.
+            The tablet leaves the ads and shows the SMATO menu, with Settings, Wi-Fi, mobile data and other
+            apps. smato stays its Home app. Lock tablet (or Back to ads on the tablet) brings the ads back, and
+            a restart always comes back locked.
           </p>
           <div className="flex flex-wrap justify-end gap-2">
             <button

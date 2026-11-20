@@ -15,11 +15,14 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.provider.Settings
 import android.text.InputType
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
+import android.net.Uri
 import android.net.http.SslError
 import android.webkit.ConsoleMessage
 import android.webkit.GeolocationPermissions
@@ -126,6 +129,7 @@ class MainActivity : AppCompatActivity() {
         setupWebView()
         syncHomeAlias()
         ensureLocationPermission()
+        askToReturnByItself()
 
         findViewById<View>(R.id.corner_tap).setOnClickListener { onCornerTap() }
         findViewById<Button>(R.id.save_button).setOnClickListener { saveUrl() }
@@ -310,6 +314,8 @@ class MainActivity : AppCompatActivity() {
         // player signals readiness again after each main-page load.
         if (!activityResumed || !playerReady) return
         if (!kioskAllowed()) return
+        // Unlocked from the dashboard: the SMATO menu is up, stay unpinned.
+        if (menuOpen) return
 
         val keyguard = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
         if (keyguard.isKeyguardLocked) return
@@ -464,6 +470,127 @@ class MainActivity : AppCompatActivity() {
     // knows it's genuinely just playing an ad, asks for this to flip on.
     private var touchBlocked = false
 
+    // The SMATO menu: what an unlocked device shows. SMATO stays the Home
+    // app throughout — Home lands back here — and the menu opens Settings,
+    // Wi-Fi, mobile data or other apps. "Back to ads" (or the dashboard's
+    // Lock, or a restart) locks it again.
+    private var menuOpen = false
+    private var menuView: View? = null
+
+    private fun showMenu() {
+        try {
+            if (isLockedOrPinned()) stopLockTask()
+        } catch (error: Exception) {
+            Log.w(TAG, "Kiosk lock wouldn't release", error)
+        }
+        menuOpen = true
+        if (menuView == null) menuView = buildMenu()
+        menuView?.visibility = View.VISIBLE
+        menuView?.bringToFront()
+    }
+
+    private fun hideMenu() {
+        menuOpen = false
+        menuView?.visibility = View.GONE
+    }
+
+    private fun buildMenu(): View {
+        val density = resources.displayMetrics.density
+        fun px(dp: Int) = (dp * density).toInt()
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(android.graphics.Color.parseColor("#FF101412"))
+            setPadding(px(28), px(24), px(28), px(24))
+        }
+        panel.addView(TextView(this).apply {
+            text = "SMATO menu"
+            textSize = 24f
+            setTextColor(android.graphics.Color.WHITE)
+        })
+        panel.addView(TextView(this).apply {
+            text = "Unlocked from the dashboard. Back to ads (or Lock on the dashboard) locks it again."
+            textSize = 14f
+            setTextColor(android.graphics.Color.parseColor("#B8BDBA"))
+            setPadding(0, px(6), 0, px(16))
+        })
+        fun item(label: String, action: () -> Unit) {
+            panel.addView(Button(this).apply {
+                text = label
+                isAllCaps = false
+                textSize = 17f
+                setOnClickListener { action() }
+            }, LinearLayout.LayoutParams(px(320), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = px(6)
+            })
+        }
+        item("Settings") { openSetting(Settings.ACTION_SETTINGS) }
+        item("Wi-Fi") { openSetting(Settings.ACTION_WIFI_SETTINGS) }
+        item("Mobile data") { openSetting(Settings.ACTION_DATA_ROAMING_SETTINGS) }
+        item("Other apps") { showOtherApps() }
+        item("Back to ads") {
+            hideMenu()
+            startAdvertising()
+        }
+        val overlay = android.widget.FrameLayout(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#E6000000"))
+            isClickable = true
+            isFocusable = true
+            addView(panel, android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.CENTER
+            ))
+            visibility = View.GONE
+        }
+        (findViewById<ViewGroup>(android.R.id.content)).addView(
+            overlay,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
+        return overlay
+    }
+
+    private fun openSetting(action: String) {
+        try {
+            startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (error: Exception) {
+            try {
+                startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (ignored: Exception) {
+                Toast.makeText(this, "This device doesn't open that screen.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    // Every app on the device, by name, to open one.
+    private fun showOtherApps() {
+        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val apps = packageManager.queryIntentActivities(launcher, 0)
+            .filter { it.activityInfo.packageName != packageName }
+            .sortedBy { it.loadLabel(packageManager).toString().lowercase() }
+        if (apps.isEmpty()) {
+            Toast.makeText(this, "No other apps found.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val names = apps.map { it.loadLabel(packageManager).toString() }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Open an app")
+            .setItems(names) { _, which ->
+                val info = apps[which].activityInfo
+                try {
+                    startActivity(
+                        Intent(Intent.ACTION_MAIN)
+                            .addCategory(Intent.CATEGORY_LAUNCHER)
+                            .setClassName(info.packageName, info.name)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                } catch (error: Exception) {
+                    Toast.makeText(this, "Couldn't open that app.", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     // Exposes readiness, touch and brightness controls to the page, plus the
     // TV controls the admin sends through it (lib/tvDevice.js). The page can
     // stop or start advertising mode — nothing beyond what the admin's TVs
@@ -540,6 +667,44 @@ class MainActivity : AppCompatActivity() {
         fun goHome() {
             runOnUiThread { leaveToHome() }
         }
+
+        // The dashboard's "Unlock tablet": unpin and show the SMATO menu.
+        // SMATO stays the Home app; its "Lock tablet" brings the ads back
+        // (startAdvertising).
+        @JavascriptInterface
+        fun releaseToHome() {
+            runOnUiThread { showMenu() }
+        }
+    }
+
+    // Android 10+ only lets an app bring itself back to the front (the
+    // dashboard's Lock) with "Display over other apps". Asked once, on the
+    // first start — before anything is locked, so the settings screen can
+    // open at all.
+    private fun askToReturnByItself() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Settings.canDrawOverlays(this)) return
+        if (prefs.getBoolean(KEY_ASKED_OVERLAY, false)) return
+        prefs.edit().putBoolean(KEY_ASKED_OVERLAY, true).apply()
+        try {
+            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+            Toast.makeText(this, "Allow SMATO here so the dashboard's Lock can bring it back.", Toast.LENGTH_LONG).show()
+        } catch (error: Exception) {
+            Log.w(TAG, "No overlay setting on this device", error)
+        }
+    }
+
+    // Brings SMATO back to the front from the background (after Unlock).
+    private fun bringToFront(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !Settings.canDrawOverlays(this)) return false
+        return try {
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            )
+            true
+        } catch (error: Exception) {
+            false
+        }
     }
 
     // Bridge calls arrive on a WebView thread; anything touching the
@@ -576,18 +741,28 @@ class MainActivity : AppCompatActivity() {
 
     // Start ads: advertising mode on, auto start on, kiosk lock on.
     private fun startAdvertising(): JSONObject {
+        hideMenu()
         DeviceState.setAdvertising(prefs, true)
         syncHomeAlias()
         configureManagedKiosk()
         screenPinningRequested = false
+        // Unlocked to the home screen: come back to the front first; the
+        // lock then engages as the screen resumes.
+        if (!activityResumed && !bringToFront()) {
+            return outcome(
+                false,
+                "Couldn't come back to the front: allow \"Display over other apps\" for smato on the device " +
+                    "(Settings → Apps → smato), or open smato on it."
+            )
+        }
         engageLockTask()
         return if (devicePolicyManager.isLockTaskPermitted(packageName)) {
             outcome(true, "Advertising mode on, locked to SMATO.")
         } else {
             outcome(
                 true,
-                "Advertising mode on. This TV isn't set up as a device owner, so it uses Android screen " +
-                    "pinning — the TV may show Android's pinning prompt once."
+                "Back on the ads. This device isn't set up as a device owner, so Android asks to pin the " +
+                    "app: tap OK on it once to lock it."
             )
         }
     }
@@ -656,7 +831,7 @@ class MainActivity : AppCompatActivity() {
     // Leaves SMATO for the device's own launcher. SMATO's Home registration
     // goes off first, or Home would just land back here; opening SMATO again
     // (or a restart, while advertising mode is on) puts it back.
-    private fun leaveToHome() {
+    private fun leaveToHome(keepRunning: Boolean = false) {
         try {
             if (isLockedOrPinned()) stopLockTask()
         } catch (error: Exception) {
@@ -672,7 +847,7 @@ class MainActivity : AppCompatActivity() {
         } catch (error: Exception) {
             Log.w(TAG, "No launcher to return to", error)
         }
-        finish()
+        if (!keepRunning) finish()
     }
 
     // Offline emergency access: Up Up Down Down Left Right Left Right on the
@@ -848,6 +1023,7 @@ class MainActivity : AppCompatActivity() {
         private const val TAP_WINDOW_MS = 3000L
         private val TAP_RESET_TOKEN = Any()
         private const val EMERGENCY_WINDOW_MS = 15_000L
+        private const val KEY_ASKED_OVERLAY = "asked_overlay"
         private const val PAGE_ALIVE_TIMEOUT_MS = 25_000L
         private const val DIAGNOSTICS_VISIBLE_MS = 90_000L
         private val EMERGENCY_SEQUENCE = listOf(

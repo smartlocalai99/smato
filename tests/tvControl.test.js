@@ -49,7 +49,8 @@ describe("executeCommand (the TV's side)", () => {
       { native, ack, reload: vi.fn(), forgetPairing: vi.fn() }
     );
 
-    expect(native.calls.map((c) => c[0])).toEqual(["goHome"]);
+    // App 1.3+ steps out but keeps running, so Lock can bring it back.
+    expect(native.calls.map((c) => c[0])).toEqual(["releaseToHome"]);
     expect(acks.at(-1)[1]).toBe("completed");
   });
 
