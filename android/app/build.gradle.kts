@@ -14,8 +14,8 @@ android {
         // service workers / Cache Storage regardless of what this app does.
         minSdk = 21
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 5
+        versionName = "1.4"
 
         // For the built-in backup player (NativePlayer.kt). The publishable
         // key is the same public one the website ships to every browser;

@@ -289,6 +289,11 @@ class MainActivity : AppCompatActivity() {
         val admin = adminComponent
         try {
             devicePolicyManager.setLockTaskPackages(admin, arrayOf(packageName))
+            // Nothing but the player while locked: no status bar, no
+            // notifications, no Home/Recents/Back, no swipes.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                devicePolicyManager.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
+            }
         } catch (error: SecurityException) {
             Log.w(TAG, "Unable to allowlist the player for kiosk mode", error)
         }
@@ -683,6 +688,8 @@ class MainActivity : AppCompatActivity() {
     // open at all.
     private fun askToReturnByItself() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Settings.canDrawOverlays(this)) return
+        // A device owner may already come back to the front by itself.
+        if (devicePolicyManager.isDeviceOwnerApp(packageName)) return
         if (prefs.getBoolean(KEY_ASKED_OVERLAY, false)) return
         prefs.edit().putBoolean(KEY_ASKED_OVERLAY, true).apply()
         try {
