@@ -27,7 +27,27 @@ android {
         buildConfig = true
     }
 
+    // One permanent key for every SMATO app, so updates install over the
+    // old version and QR setup's fingerprint never changes. The keystore is
+    // android/signing/smato-release.p12 (password-protected); CI supplies
+    // the password as the SMATO_KEYSTORE_PASSWORD secret.
+    signingConfigs {
+        val password = System.getenv("SMATO_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() }
+        if (password != null) {
+            create("smato") {
+                storeFile = rootProject.file("signing/smato-release.p12")
+                storePassword = password
+                keyAlias = "smato"
+                keyPassword = password
+                storeType = "pkcs12"
+            }
+        }
+    }
+
     buildTypes {
+        getByName("debug") {
+            signingConfigs.findByName("smato")?.let { signingConfig = it }
+        }
         release {
             isMinifyEnabled = false
         }
