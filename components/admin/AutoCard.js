@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { supabase, setAutoScreen, renumberAuto } from "@/lib/supabase";
 import PhoneActions from "@/components/admin/PhoneActions";
+import Modal from "@/components/admin/Modal";
+import { sendCommand } from "@/lib/tvAdmin";
 import { STATUS_STYLES, autoStatus, batteryLabel, batteryStyle, timeAgo } from "@/lib/autoStatus";
 
 const actionClass =
@@ -62,6 +64,8 @@ export default function AutoCard({ auto, autos, driver, onChange }) {
   const [screenBusy, setScreenBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [renumberBusy, setRenumberBusy] = useState(false);
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  const [unlockStatus, setUnlockStatus] = useState("");
 
   const s = autoStatus(auto);
   const styles = STATUS_STYLES[s];
@@ -82,6 +86,25 @@ export default function AutoCard({ auto, autos, driver, onChange }) {
       setSimError(err.message || "Couldn't save that SIM number.");
     } finally {
       setSimBusy(false);
+    }
+  }
+
+  // Steps the tablet out of the kiosk to its own home screen (Settings,
+  // Back and the pull-down work). It locks again by itself when smato is
+  // opened on it or it restarts. Only tablets on the current app (they
+  // report an app version) can do this.
+  async function unlockTablet() {
+    setUnlockOpen(false);
+    setUnlockStatus("Sending…");
+    try {
+      await sendCommand(supabase, auto.auto_number, "unlock", { release: true });
+      setUnlockStatus(
+        autoStatus(auto) === "online"
+          ? "Sent. The tablet goes to its home screen within a few seconds."
+          : "Sent. The tablet is offline; it unlocks as soon as it's back online."
+      );
+    } catch (err) {
+      setUnlockStatus(err.message || "Couldn't send that to the tablet.");
     }
   }
 
@@ -239,6 +262,18 @@ export default function AutoCard({ auto, autos, driver, onChange }) {
             {renumberBusy ? "Saving…" : "Change number"}
           </button>
         </div>
+        {auto.app_version && (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => setUnlockOpen(true)}
+              className={`${actionClass} w-full border border-line text-text hover:border-text-faint`}
+            >
+              Unlock tablet
+            </button>
+            {unlockStatus && <p className="mt-1.5 text-xs text-text-dim">{unlockStatus}</p>}
+          </div>
+        )}
         {/* Rare and permanent, so it sits apart from the everyday buttons,
             quiet, where a thumb won't catch it by accident. */}
         <div className="mt-1 flex justify-end">
@@ -262,6 +297,27 @@ export default function AutoCard({ auto, autos, driver, onChange }) {
           </button>
         </div>
       </div>
+
+      <Modal open={unlockOpen} onClose={() => setUnlockOpen(false)} title={`Unlock ${auto.auto_number}?`}>
+        <div className="flex flex-col gap-4">
+          <p className="text-sm leading-relaxed text-text-dim">
+            The tablet leaves the ads and goes to its normal home screen, so Settings, Back and the pull-down
+            from the top work. It locks again by itself when the smato app is opened on it, or when it restarts.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setUnlockOpen(false)}
+              className={`${actionClass} border border-line text-text hover:border-text-faint`}
+            >
+              Keep it locked
+            </button>
+            <button type="button" onClick={unlockTablet} className={`${actionClass} bg-amber px-5 text-on-amber hover:bg-[#ffc250]`}>
+              Unlock tablet
+            </button>
+          </div>
+        </div>
+      </Modal>
     </li>
   );
 }

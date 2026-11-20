@@ -41,6 +41,18 @@ describe("executeCommand (the TV's side)", () => {
     expect(native.calls.map((c) => c[0])).toEqual(["unlockTv", "goHome"]);
   });
 
+  it("a tablet's Unlock only steps out to its home screen, leaving advertising mode on", async () => {
+    const native = fakeNative();
+    const { acks, ack } = recorder();
+    await executeCommand(
+      { id: "t1", command: "unlock", payload: { release: true } },
+      { native, ack, reload: vi.fn(), forgetPairing: vi.fn() }
+    );
+
+    expect(native.calls.map((c) => c[0])).toEqual(["goHome"]);
+    expect(acks.at(-1)[1]).toBe("completed");
+  });
+
   it("reports a blocked unlock as failed and stays put, rather than claiming success", async () => {
     const native = fakeNative({ unlockTv: { ok: false, detail: "Unlock incomplete: device owner restriction." } });
     const { acks, ack } = recorder();

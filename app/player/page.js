@@ -355,11 +355,12 @@ function Player({ autoNumber, onRenumbered }) {
         battery_charging: battery.charging,
         now_playing_title: nowPlayingRef.current,
       };
-      // A TV also reports its advertising state for the admin's TVs page.
+      // A device on the current app also reports its advertising state and
+      // app version (the TVs page, and the Autos page's Unlock button).
       const tv = nativeInfo();
-      const tvFields = tv?.isTv
+      const tvFields = tv?.token
         ? {
-            device_type: "tv",
+            ...(tv.isTv ? { device_type: "tv" } : {}),
             ads_mode: tv.adsMode,
             auto_start: tv.autoStart,
             device_owner: tv.deviceOwner,
@@ -632,15 +633,18 @@ function Player({ autoNumber, onRenumbered }) {
     refreshFromRow();
   }, [refreshFromRow]);
 
-  // --- TV control (lib/tvDevice.js): Android TVs only ----------------------
-  // Pairs this TV with its number, then runs whatever the admin's TVs page
-  // has queued — start ads, unlock, restart, unpair — acknowledging
-  // each step. One round at a time; on a tablet or in a browser it's a no-op.
+  // --- Device control (lib/tvDevice.js) -------------------------------------
+  // Pairs this device with its number, then runs whatever the dashboard has
+  // queued — TVs: start ads, unlock, restart, unpair; tablets: Unlock —
+  // acknowledging each step. One round at a time; it's a no-op in a plain
+  // browser or on the older app, which can't report a pairing secret.
   const tvPairedRef = useRef(false);
   const tvBusyRef = useRef(false);
   const runTvControl = useCallback(async () => {
     const info = nativeInfo();
-    if (!info?.isTv || !info.token || !navigator.onLine || tvBusyRef.current) return;
+    // Any device running the current app (it reports a pairing secret) —
+    // TVs, and tablets for their remote Unlock.
+    if (!info?.token || !navigator.onLine || tvBusyRef.current) return;
     tvBusyRef.current = true;
     try {
       if (!tvPairedRef.current) {
