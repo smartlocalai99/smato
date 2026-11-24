@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, setAutoScreen } from "@/lib/supabase";
 import Modal from "@/components/admin/Modal";
 import { timeAgo } from "@/lib/autoStatus";
 import {
@@ -117,6 +117,21 @@ export default function TvCard({ device, latest, secrets, ads = [], onChange }) 
     }
   }
 
+  // Turn off / on screen: the same switch the tablets use (autos.screen_off).
+  // The TV goes black and stops the ads within about 20 seconds.
+  async function toggleScreen() {
+    setBusy(true);
+    setError("");
+    try {
+      await setAutoScreen(device.auto_number, !device.screen_off);
+      onChange();
+    } catch (err) {
+      setError(err.message || "Couldn't change the screen.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function savePin(e) {
     e.preventDefault();
     if (!validPin(pin)) {
@@ -157,6 +172,7 @@ export default function TvCard({ device, latest, secrets, ads = [], onChange }) 
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Chip tone={online ? "good" : "quiet"}>{online ? "Online" : "Offline"}</Chip>
+          {adsApp && device.screen_off && <Chip tone="warn">Screen off</Chip>}
           {!adsApp && device.ads_mode && (
             <Chip tone={unlocked ? "warn" : "good"}>{unlocked ? "Unlocked" : "Advertising"}</Chip>
           )}
@@ -165,19 +181,42 @@ export default function TvCard({ device, latest, secrets, ads = [], onChange }) 
 
       {adsApp ? (
         <>
-          <Playlist
-            ads={playlist}
-            playing={playing}
-            upNext={upNext}
-            nowPlayingTitle={device.now_playing_title}
-            tvName={device.auto_number}
-            disabled={busy || pending}
-            onPlay={(ad) => run("play", { ad_id: ad.id, title: ad.title })}
-          />
+          {device.screen_off ? (
+            <div className="flex flex-col gap-3 rounded-xl border border-line bg-panel-2 px-3 py-3">
+              <p className="text-sm text-text-dim">
+                The screen is off: the TV shows black and the ads are stopped. It stays on standby for your commands.
+              </p>
+              <button type="button" className={`${primaryClass} self-start`} disabled={busy} onClick={toggleScreen}>
+                Turn on screen
+              </button>
+            </div>
+          ) : (
+            <Playlist
+              ads={playlist}
+              playing={playing}
+              upNext={upNext}
+              nowPlayingTitle={device.now_playing_title}
+              tvName={device.auto_number}
+              disabled={busy || pending}
+              onPlay={(ad) => run("play", { ad_id: ad.id, title: ad.title })}
+            />
+          )}
           <div className="flex flex-wrap gap-2">
-            <button type="button" className={primaryClass} disabled={busy || pending} onClick={() => run("restart")}>
-              Restart ads
-            </button>
+            {!device.screen_off && (
+              <>
+                <button
+                  type="button"
+                  className={primaryClass}
+                  disabled={busy || pending}
+                  onClick={() => run("restart")}
+                >
+                  Restart ads
+                </button>
+                <button type="button" className={secondaryClass} disabled={busy} onClick={toggleScreen}>
+                  Turn off screen
+                </button>
+              </>
+            )}
             <button
               type="button"
               className={secondaryClass}

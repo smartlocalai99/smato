@@ -29,7 +29,9 @@ class DeviceLink(
     // Play now: jump to one ad. Runs on the main thread; null means it's playing.
     private val onPlay: (id: String, title: String?) -> String?,
     // Update app: runs on this class's background thread.
-    private val onUpdate: () -> Updater.Result
+    private val onUpdate: () -> Updater.Result,
+    // Turn off / on screen from the dashboard (autos.screen_off). Main thread.
+    private val onScreen: (off: Boolean) -> Unit = {}
 ) {
     private val prefs = context.getSharedPreferences("smato_tv", Context.MODE_PRIVATE)
     private val handler = Handler(Looper.getMainLooper())
@@ -46,6 +48,10 @@ class DeviceLink(
     // good, so the same number links it again after an unpair or delete.
     val code: String
         get() = prefs.getString(KEY_CODE, null) ?: newCode().also { prefs.edit().putString(KEY_CODE, it).apply() }
+
+    // Whether the dashboard has this TV's screen turned off. Kept on the TV
+    // too, so it stays dark after a restart even before it's back online.
+    val screenOff: Boolean get() = prefs.getBoolean(KEY_SCREEN_OFF, false)
 
     // Whether the server has accepted the code yet (it can be entered now).
     val codeReady: Boolean get() = codeOffered
@@ -123,6 +129,7 @@ class DeviceLink(
             unlink()
             return
         }
+        syncScreen(name)
         val commands = JSONObject(answer).optJSONArray("commands") ?: JSONArray()
         for (i in 0 until commands.length()) {
             val command = commands.getJSONObject(i)
@@ -177,6 +184,33 @@ class DeviceLink(
         }
         latch.await(5, java.util.concurrent.TimeUnit.SECONDS)
         return answer
+    }
+
+    // The dashboard's Turn off / on screen, the same autos.screen_off the
+    // tablets use. Read on every poll (20 s); acted on only when it changes.
+    private fun syncScreen(name: String) {
+        val rows = JSONArray(
+            get("${BuildConfig.SUPABASE_URL}/rest/v1/autos?select=screen_off&auto_number=eq.${java.net.URLEncoder.encode(name, "UTF-8")}")
+        )
+        if (rows.length() == 0) return
+        val off = rows.getJSONObject(0).optBoolean("screen_off", false)
+        if (off == screenOff) return
+        prefs.edit().putBoolean(KEY_SCREEN_OFF, off).apply()
+        handler.post { onScreen(off) }
+    }
+
+    private fun get(url: String): String {
+        val connection = URL(url).openConnection() as HttpURLConnection
+        connection.connectTimeout = 15_000
+        connection.readTimeout = 20_000
+        connection.setRequestProperty("apikey", BuildConfig.SUPABASE_KEY)
+        connection.setRequestProperty("Authorization", "Bearer ${BuildConfig.SUPABASE_KEY}")
+        return try {
+            if (connection.responseCode !in 200..299) throw IllegalStateException("server answered ${connection.responseCode}")
+            connection.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            connection.disconnect()
+        }
     }
 
     // A new ad just started: tell the dashboard now rather than at the next
@@ -264,6 +298,7 @@ class DeviceLink(
         private const val KEY_TOKEN = "device_token"
         private const val KEY_CODE = "pairing_code"
         private const val KEY_NAME = "linked_name"
+        private const val KEY_SCREEN_OFF = "screen_off"
         private const val UNLINKED_EVERY_MS = 10_000L
         // Often enough that Play now feels immediate; one tiny request each time.
         private const val LINKED_EVERY_MS = 20_000L

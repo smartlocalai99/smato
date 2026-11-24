@@ -35,7 +35,10 @@ class PlayerActivity : Activity() {
     private lateinit var link: DeviceLink
     private lateinit var corner: TextView
     private lateinit var welcome: TextView
+    private lateinit var blackout: TextView
+    private var dark = false
     private val hideCorner = Runnable { corner.visibility = View.GONE }
+    private val clearBlackoutText = Runnable { blackout.text = "" }
     private val hideWelcome = Runnable {
         welcome.visibility = View.GONE
         updateCorner()
@@ -91,6 +94,17 @@ class PlayerActivity : Activity() {
             visibility = View.GONE
         }
         root.addView(welcome, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER))
+        // Screen turned off from the dashboard: all black, ads stopped. The TV
+        // itself stays on and keeps listening, so it can be turned back on
+        // from the phone. (An app can't power the TV fully off and on.)
+        blackout = TextView(this).apply {
+            setBackgroundColor(Color.BLACK)
+            setTextColor(Color.parseColor("#6B6B66"))
+            textSize = 18f
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+        root.addView(blackout, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         setContentView(root)
 
         link = DeviceLink(
@@ -102,7 +116,8 @@ class PlayerActivity : Activity() {
             },
             onRestart = { player.restart() },
             onPlay = { id, title -> player.playNow(id, title) },
-            onUpdate = { updater.updateNow() }
+            onUpdate = { updater.updateNow() },
+            onScreen = { off -> setDark(off) }
         )
         player = AdPlayer(this, video, image, status, { link.linkedName }) { link.reportNow() }
         updater = Updater(this)
@@ -111,10 +126,13 @@ class PlayerActivity : Activity() {
     override fun onResume() {
         super.onResume()
         hideSystemBars()
-        player.start()
+        dark = link.screenOff
+        if (dark) showDark() else {
+            player.start()
+            showWelcome()
+        }
         link.start()
         AutoOpen.startWatching(this)
-        showWelcome()
     }
 
     override fun onPause() {
@@ -127,6 +145,34 @@ class PlayerActivity : Activity() {
         player.release()
         link.release()
         super.onDestroy()
+    }
+
+    private fun setDark(off: Boolean) {
+        if (off == dark) return
+        dark = off
+        if (off) {
+            player.pause()
+            showDark()
+        } else {
+            blackout.visibility = View.GONE
+            setBrightness(-1f)
+            player.start()
+            showWelcome()
+        }
+        link.reportNow()
+    }
+
+    private fun showDark() {
+        welcome.visibility = View.GONE
+        corner.visibility = View.GONE
+        blackout.text = ""
+        blackout.visibility = View.VISIBLE
+        // Dims the backlight as far as the TV allows; many TVs ignore it.
+        setBrightness(0f)
+    }
+
+    private fun setBrightness(value: Float) {
+        window.attributes = window.attributes.apply { screenBrightness = value }
     }
 
     // The start card: which TV this is, its permanent code, and whether it's
@@ -167,7 +213,7 @@ class PlayerActivity : Activity() {
     // both are done, a short "Linked as TV-01" and then nothing.
     private fun updateCorner() {
         corner.removeCallbacks(hideCorner)
-        if (welcome.visibility == View.VISIBLE) return
+        if (welcome.visibility == View.VISIBLE || dark) return
         val lines = mutableListOf<String>()
         val name = link.linkedName
         when {
@@ -184,6 +230,13 @@ class PlayerActivity : Activity() {
 
     // OK on the remote opens the setting that lets SMATO Ads open itself.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (dark && event.action == KeyEvent.ACTION_UP) {
+            // Someone pressed the remote while the screen is off: say why it's black.
+            blackout.text = "The screen was turned off from the SMATO dashboard.\nTurn it on there: TVs → Turn on screen."
+            blackout.removeCallbacks(clearBlackoutText)
+            blackout.postDelayed(clearBlackoutText, 8_000)
+            return true
+        }
         val ok = event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
             event.keyCode == KeyEvent.KEYCODE_ENTER ||
             event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
