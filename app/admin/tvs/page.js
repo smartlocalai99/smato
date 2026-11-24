@@ -14,6 +14,7 @@ export default function TvsPage() {
   const [tvs, setTvs] = useState([]);
   const [latest, setLatest] = useState({});
   const [secrets, setSecrets] = useState({});
+  const [ads, setAds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [setupNeeded, setSetupNeeded] = useState(false);
@@ -29,7 +30,7 @@ export default function TvsPage() {
       if (devicesError) throw devicesError;
       const numbers = (devices || []).map((d) => d.auto_number);
 
-      const [commands, secretRows] = numbers.length
+      const [commands, secretRows, adRows] = numbers.length
         ? await Promise.all([
             supabase
               .from("device_commands")
@@ -38,11 +39,17 @@ export default function TvsPage() {
               .order("created_at", { ascending: false })
               .limit(200),
             supabase.from("device_secrets").select("auto_number,recovery_pin_hash,token_hash").in("auto_number", numbers),
+            // For each TV's playlist (lib/tvAdmin tvPlaylist).
+            supabase
+              .from("ads")
+              .select("id,title,auto_number,active,start_date,end_date,sort_order,media_type")
+              .order("sort_order"),
           ])
-        : [{ data: [] }, { data: [] }];
+        : [{ data: [] }, { data: [] }, { data: [] }];
       if (commands.error) throw commands.error;
 
       setTvs(devices || []);
+      setAds(adRows.data || []);
       setLatest(latestByDevice(commands.data || []));
       // Only whether a PIN / pairing exists ever reaches the page, not the hashes.
       setSecrets(
@@ -138,6 +145,7 @@ export default function TvsPage() {
                 device={device}
                 latest={latest[device.auto_number]}
                 secrets={secrets[device.auto_number]}
+                ads={ads}
                 onChange={load}
               />
             ))}

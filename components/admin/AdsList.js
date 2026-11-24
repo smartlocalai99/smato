@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase, adFileUrl, ADS_BUCKET, notifyAdsChanged } from "@/lib/supabase";
 import { todayStr } from "@/lib/time";
+import { moveAd } from "@/lib/adOrder";
 
 // Why an ad isn't in the "Running now" list — distinct from just "not
 // running," since the fix is different for each (nothing to do, wait, or
@@ -29,6 +30,17 @@ export default function AdsList({ ads, onChange, emptyMessage, showOrder = true 
   async function toggleActive(ad) {
     setBusyId(ad.id);
     await supabase.from("ads").update({ active: !ad.active }).eq("id", ad.id);
+    setBusyId(null);
+    notifyAdsChanged();
+    onChange();
+  }
+
+  // ↑ / ↓: play this ad earlier or later on every screen it runs on.
+  async function move(index, delta) {
+    const rows = moveAd(ads, index, delta);
+    if (!rows.length) return;
+    setBusyId(ads[index].id);
+    await Promise.all(rows.map((row) => supabase.from("ads").update({ sort_order: row.sort_order }).eq("id", row.id)));
     setBusyId(null);
     notifyAdsChanged();
     onChange();
@@ -97,6 +109,30 @@ export default function AdsList({ ads, onChange, emptyMessage, showOrder = true 
               </div>
             </div>
             <div className="flex items-start gap-2">
+              {showOrder && (
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    disabled={busyId !== null || index === 0}
+                    onClick={() => move(index, -1)}
+                    aria-label={`Play "${ad.title}" earlier`}
+                    title="Play earlier"
+                    className="rounded-md border border-line bg-panel-2 px-2.5 py-1.5 text-sm font-semibold text-text hover:border-text-faint disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busyId !== null || index === ads.length - 1}
+                    onClick={() => move(index, 1)}
+                    aria-label={`Play "${ad.title}" later`}
+                    title="Play later"
+                    className="rounded-md border border-line bg-panel-2 px-2.5 py-1.5 text-sm font-semibold text-text hover:border-text-faint disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    ↓
+                  </button>
+                </div>
+              )}
               <button
                 disabled={busyId === ad.id}
                 onClick={() => toggleActive(ad)}

@@ -10,8 +10,10 @@ import {
   isAdsApp,
   isOnline,
   isPending,
+  playlistPosition,
   saveRecoveryPin,
   sendCommand,
+  tvPlaylist,
   validPin,
 } from "@/lib/tvAdmin";
 
@@ -47,6 +49,11 @@ const CONFIRM = {
     body: "The TV keeps playing the All-autos ads but is no longer linked to your dashboard. It shows its code again, so you can link it again with the same number.",
     action: "Unpair TV",
   },
+  update: {
+    title: "Update SMATO Ads on this TV?",
+    body: "The TV downloads the newest SMATO Ads and shows Android's install screen. Someone at the TV presses Update on the remote; the ads pause for about a minute while it installs. If it's already up to date, nothing changes.",
+    action: "Update app",
+  },
   // Removes the TV from the dashboard altogether (its commands and pairing
   // go with it). A SMATO Ads TV keeps playing and shows its code again.
   delete: {
@@ -67,7 +74,7 @@ function Chip({ tone, children }) {
 
 // One TV on the admin's TVs page: its state as the TV last reported it,
 // the controls, and the progress of the latest command.
-export default function TvCard({ device, latest, secrets, onChange }) {
+export default function TvCard({ device, latest, secrets, ads = [], onChange }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(null);
@@ -79,6 +86,8 @@ export default function TvCard({ device, latest, secrets, onChange }) {
   const stage = commandStage(latest, device);
   const unlocked = device.ads_mode === "unlocked";
   const adsApp = isAdsApp(device);
+  const playlist = adsApp ? tvPlaylist(ads, device.auto_number) : [];
+  const { playing, upNext } = playlistPosition(playlist, device.now_playing_title);
 
   async function remove() {
     setBusy(true);
@@ -156,18 +165,26 @@ export default function TvCard({ device, latest, secrets, onChange }) {
 
       {adsApp ? (
         <>
-          <p className="text-sm text-text-dim">
-            {device.now_playing_title ? (
-              <>
-                Playing <span className="font-semibold text-text">{device.now_playing_title}</span>
-              </>
-            ) : (
-              "Nothing playing right now"
-            )}
-          </p>
+          <Playlist
+            ads={playlist}
+            playing={playing}
+            upNext={upNext}
+            nowPlayingTitle={device.now_playing_title}
+            tvName={device.auto_number}
+            disabled={busy || pending}
+            onPlay={(ad) => run("play", { ad_id: ad.id, title: ad.title })}
+          />
           <div className="flex flex-wrap gap-2">
             <button type="button" className={primaryClass} disabled={busy || pending} onClick={() => run("restart")}>
               Restart ads
+            </button>
+            <button
+              type="button"
+              className={secondaryClass}
+              disabled={busy || pending}
+              onClick={() => setConfirming("update")}
+            >
+              Update app
             </button>
           </div>
         </>
@@ -305,5 +322,64 @@ export default function TvCard({ device, latest, secrets, onChange }) {
         )}
       </Modal>
     </li>
+  );
+}
+
+// A SMATO Ads TV's playlist in play order: what's on screen, what's next,
+// and Play now to jump straight to any ad.
+function Playlist({ ads, playing, upNext, nowPlayingTitle, tvName, disabled, onPlay }) {
+  if (!ads.length) {
+    return (
+      <p className="rounded-xl border border-dashed border-line px-3 py-3 text-sm text-text-dim">
+        No ads for this TV right now. Upload one for All autos or for {tvName} on the Ads page.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold">Playlist</h3>
+        <span className="text-xs text-text-faint">
+          {ads.length} {ads.length === 1 ? "ad" : "ads"}, in order. Change the order on the Ads page.
+        </span>
+      </div>
+      {playing < 0 && nowPlayingTitle && (
+        <p className="text-xs text-text-dim">
+          On screen: <span className="font-semibold text-text">{nowPlayingTitle}</span>
+        </p>
+      )}
+      <ol className="flex flex-col divide-y divide-line overflow-hidden rounded-xl border border-line">
+        {ads.map((ad, i) => {
+          const isPlaying = i === playing;
+          const isNext = i === upNext;
+          return (
+            <li
+              key={ad.id}
+              className={`flex min-h-12 items-center gap-3 px-3 py-2 ${isPlaying ? "bg-green/[0.07]" : ""}`}
+            >
+              <span className="w-5 flex-none text-right font-mono text-xs text-text-faint">{i + 1}</span>
+              <div className="min-w-0 flex-1">
+                <p className={`truncate text-sm ${isPlaying ? "font-semibold text-text" : "text-text"}`}>{ad.title}</p>
+                {(isPlaying || isNext) && (
+                  <p className={`text-xs font-semibold ${isPlaying ? "text-green" : "text-teal"}`}>
+                    {isPlaying ? "Playing now" : "Up next"}
+                  </p>
+                )}
+              </div>
+              {!isPlaying && (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onPlay(ad)}
+                  className="min-h-9 flex-none rounded-full border border-line px-3 text-xs font-semibold text-text transition-colors hover:border-text-faint disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Play now
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }

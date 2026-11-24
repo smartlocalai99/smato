@@ -100,20 +100,18 @@ class PlayerActivity : Activity() {
                 if (welcome.visibility == View.VISIBLE) welcome.text = welcomeText()
                 updateCorner()
             },
-            onRestart = { player.restart() }
+            onRestart = { player.restart() },
+            onPlay = { id, title -> player.playNow(id, title) },
+            onUpdate = { updater.updateNow() }
         )
         player = AdPlayer(this, video, image, status) { link.linkedName }
-        updater = Updater(this) { message ->
-            status.text = message
-            status.visibility = View.VISIBLE
-        }
+        updater = Updater(this)
     }
 
     override fun onResume() {
         super.onResume()
         hideSystemBars()
         player.start()
-        updater.start()
         link.start()
         AutoOpen.startWatching(this)
         showWelcome()
@@ -121,14 +119,12 @@ class PlayerActivity : Activity() {
 
     override fun onPause() {
         player.pause()
-        updater.stop()
         link.stop()
         super.onPause()
     }
 
     override fun onDestroy() {
         player.release()
-        updater.release()
         link.release()
         super.onDestroy()
     }

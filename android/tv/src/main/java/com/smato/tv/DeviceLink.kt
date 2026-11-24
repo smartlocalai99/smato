@@ -18,13 +18,18 @@ import java.util.concurrent.Executors
 // linked: until linked it offers a 6-digit code (tv_request_code) and waits
 // for an admin to enter it on the TVs page (tv_code_status). Once linked it
 // checks in every few minutes (online, what's playing) and carries out the
-// dashboard's commands — Restart ads, Unpair — acknowledging each one
+// dashboard's commands — Restart ads, Play now, Update app, Unpair —
+// acknowledging each one
 // (device_poll / device_ack). See docs/sql/tv-pairing.sql and tv-control.sql.
 class DeviceLink(
     context: Context,
     private val nowPlaying: () -> String?,
     private val onChange: () -> Unit,
-    private val onRestart: () -> Unit
+    private val onRestart: () -> Unit,
+    // Play now: jump to one ad. Runs on the main thread; null means it's playing.
+    private val onPlay: (id: String, title: String?) -> String?,
+    // Update app: runs on this class's background thread.
+    private val onUpdate: () -> Updater.Result
 ) {
     private val prefs = context.getSharedPreferences("smato_tv", Context.MODE_PRIVATE)
     private val handler = Handler(Looper.getMainLooper())
@@ -127,6 +132,25 @@ class DeviceLink(
                 "restart" -> {
                     handler.post { onRestart() }
                     ack(name, id, "completed", "Ads restarted.")
+                    lastBeat = 0L
+                }
+                "play" -> {
+                    val payload = command.optJSONObject("payload") ?: JSONObject()
+                    val title = payload.optString("title").ifBlank { null }
+                    val problem = onMain { onPlay(payload.optString("ad_id"), title) }
+                    if (problem == null) {
+                        ack(name, id, "completed", "Playing ${title?.let { "\"$it\"" } ?: "that ad"} now.")
+                        // Show it as playing on the dashboard right away.
+                        Thread.sleep(500)
+                        checkIn(name)
+                        lastBeat = System.currentTimeMillis()
+                    } else {
+                        ack(name, id, "failed", problem)
+                    }
+                }
+                "update" -> {
+                    val result = onUpdate()
+                    ack(name, id, if (result.ok) "completed" else "failed", result.detail)
                 }
                 "unpair" -> {
                     ack(name, id, "completed", "Unpaired. The TV keeps playing and shows a new code.")
@@ -137,6 +161,22 @@ class DeviceLink(
                 else -> ack(name, id, "failed", "SMATO Ads doesn't know that command.")
             }
         }
+    }
+
+    // Runs block on the main thread and waits for its answer (UI state like
+    // the playlist lives there). Gives up after a few seconds.
+    private fun <T> onMain(block: () -> T): T? {
+        val latch = java.util.concurrent.CountDownLatch(1)
+        var answer: T? = null
+        handler.post {
+            try {
+                answer = block()
+            } finally {
+                latch.countDown()
+            }
+        }
+        latch.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        return answer
     }
 
     private fun unlink() {
@@ -210,7 +250,8 @@ class DeviceLink(
         private const val KEY_CODE = "pairing_code"
         private const val KEY_NAME = "linked_name"
         private const val UNLINKED_EVERY_MS = 10_000L
-        private const val LINKED_EVERY_MS = 60_000L
+        // Often enough that Play now feels immediate; one tiny request each time.
+        private const val LINKED_EVERY_MS = 20_000L
         private const val BEAT_EVERY_MS = 3 * 60 * 1000L
     }
 }

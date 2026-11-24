@@ -39,8 +39,8 @@ class AdPlayer(
     // any: ads sent to that name play here as well as "All autos" ones.
     private val linkedName: () -> String?
 ) {
-    private data class Ad(val file: File, val isImage: Boolean, val title: String)
-    private data class Wanted(val path: String, val isImage: Boolean, val bytes: Long, val title: String)
+    private data class Ad(val id: String, val file: File, val isImage: Boolean, val title: String)
+    private data class Wanted(val id: String, val path: String, val isImage: Boolean, val bytes: Long, val title: String)
 
     private val handler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
@@ -66,6 +66,20 @@ class AdPlayer(
         index = 0
         playCurrent()
         refresh()
+    }
+
+    // From the dashboard's Play now: jump to that ad straight away, then
+    // carry on through the list from there. Null when it's playing; else why not.
+    fun playNow(id: String, title: String?): String? {
+        if (!running) return "SMATO Ads isn't on the TV's screen right now."
+        var at = playlist.indexOfFirst { it.id == id }
+        if (at < 0 && !title.isNullOrBlank()) at = playlist.indexOfFirst { it.title == title }
+        if (at < 0) {
+            return "That ad isn't on this TV yet. It may still be downloading, be paused, or be meant for another TV."
+        }
+        index = at
+        playCurrent()
+        return null
     }
 
     fun start() {
@@ -172,6 +186,7 @@ class AdPlayer(
             if (start != null && today < start) continue
             if (end != null && today > end) continue
             wanted += Wanted(
+                row.optString("id"),
                 row.getString("file_path"),
                 row.optString("media_type") == "image",
                 if (row.isNull("file_size")) 0L else row.optLong("file_size", 0L),
@@ -185,7 +200,7 @@ class AdPlayer(
         wanted.sortedBy { it.bytes }.forEachIndexed { i, item ->
             val file = File(dir, item.path.replace("/", "_"))
             if (!file.exists()) download(item, file, i + 1, wanted.size)
-            ready[item.path] = Ad(file, item.isImage, item.title)
+            ready[item.path] = Ad(item.id, file, item.isImage, item.title)
             val soFar = wanted.mapNotNull { ready[it.path] }
             handler.post { offerReady(soFar) }
         }
@@ -248,7 +263,7 @@ class AdPlayer(
 
     private fun savePlaylist(ads: List<Ad>) {
         val list = JSONArray()
-        ads.forEach { list.put(JSONObject().put("file", it.file.name).put("image", it.isImage).put("title", it.title)) }
+        ads.forEach { list.put(JSONObject().put("id", it.id).put("file", it.file.name).put("image", it.isImage).put("title", it.title)) }
         prefs.edit().putString("playlist", list.toString()).apply()
     }
 
@@ -257,7 +272,7 @@ class AdPlayer(
         (0 until list.length()).mapNotNull { i ->
             val item = list.getJSONObject(i)
             val file = File(dir, item.getString("file"))
-            if (file.exists()) Ad(file, item.optBoolean("image"), item.optString("title")) else null
+            if (file.exists()) Ad(item.optString("id"), file, item.optBoolean("image"), item.optString("title")) else null
         }
     } catch (error: Exception) {
         emptyList()

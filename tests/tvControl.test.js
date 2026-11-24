@@ -3,7 +3,16 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase", () => ({ notifyDeviceCommand: vi.fn() }));
 
-import { claimTvCode, commandStage, isAdsApp, latestByDevice, pinHash, validPin } from "@/lib/tvAdmin";
+import {
+  claimTvCode,
+  commandStage,
+  isAdsApp,
+  latestByDevice,
+  pinHash,
+  playlistPosition,
+  tvPlaylist,
+  validPin,
+} from "@/lib/tvAdmin";
 import { executeCommand, pollTv } from "@/lib/tvDevice";
 
 const NOW = new Date("2026-11-14T10:00:00Z");
@@ -181,5 +190,37 @@ describe("linking a SMATO Ads TV", () => {
   it("passes on the database's reason when a code is wrong", async () => {
     const rpc = vi.fn(async () => ({ data: null, error: new Error("That code isn't valid.") }));
     await expect(claimTvCode({ rpc }, "000000", "TV-02")).rejects.toThrow("That code isn't valid.");
+  });
+});
+
+describe("a SMATO Ads TV's playlist", () => {
+  const ads = [
+    { id: "3", title: "Gold loan", active: true, auto_number: null, sort_order: 3 },
+    { id: "1", title: "Diwali offer", active: true, auto_number: null, sort_order: 1 },
+    { id: "2", title: "Only on TV-02", active: true, auto_number: "TV-02", sort_order: 2 },
+    { id: "4", title: "Paused", active: false, auto_number: null, sort_order: 4 },
+    { id: "5", title: "Next month", active: true, auto_number: null, sort_order: 5, start_date: "2026-12-01" },
+    { id: "6", title: "Finished", active: true, auto_number: null, sort_order: 6, end_date: "2026-11-01" },
+    { id: "7", title: "For TV-01", active: true, auto_number: "TV-01", sort_order: 0 },
+  ];
+
+  it("plays the same ads the TV does: active, for All autos or this TV, in date, by order", () => {
+    expect(tvPlaylist(ads, "TV-01", "2026-11-24").map((ad) => ad.id)).toEqual(["7", "1", "3"]);
+    expect(tvPlaylist(ads, "TV-02", "2026-11-24").map((ad) => ad.id)).toEqual(["1", "2", "3"]);
+  });
+
+  it("marks what's playing and what's up next, wrapping round at the end", () => {
+    const list = tvPlaylist(ads, "TV-01", "2026-11-24");
+    expect(playlistPosition(list, "Diwali offer")).toEqual({ playing: 1, upNext: 2 });
+    expect(playlistPosition(list, "Gold loan")).toEqual({ playing: 2, upNext: 0 });
+    expect(playlistPosition(list, null)).toEqual({ playing: -1, upNext: -1 });
+    expect(playlistPosition(list, "Something else")).toEqual({ playing: -1, upNext: -1 });
+    expect(playlistPosition(list.slice(0, 1), "For TV-01")).toEqual({ playing: 0, upNext: -1 });
+  });
+
+  it("names the ad in a Play now command's progress", () => {
+    const command = { command: "play", status: "completed", payload: { ad_id: "1", title: "Diwali offer" } };
+    expect(commandStage(command, online, NOW).text).toBe("Play now: Diwali offer completed");
+    expect(commandStage({ command: "update", status: "received" }, online, NOW).text).toBe("Update app received by the TV");
   });
 });

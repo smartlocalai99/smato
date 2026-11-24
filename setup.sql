@@ -304,7 +304,8 @@ on conflict (auto_number) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- TV control: Android TVs running the player, managed from the admin's TVs
--- page — start ads, unlock, restart, unpair — through acknowledged commands.
+-- page — start ads, unlock, restart, play an ad now, update the app, unpair —
+-- through acknowledged commands.
 -- Safe to re-run. Also included at the end of setup.sql.
 -- ---------------------------------------------------------------------------
 
@@ -343,7 +344,7 @@ create policy "device_secrets_admin" on device_secrets for all
 create table if not exists device_commands (
   id uuid primary key default gen_random_uuid(),
   auto_number text not null references autos(auto_number) on delete cascade,
-  command text not null check (command in ('lock', 'unlock', 'restart', 'unpair')),
+  command text not null,
   payload jsonb not null default '{}'::jsonb,
   status text not null default 'requested'
     check (status in ('requested', 'received', 'completed', 'failed', 'cancelled')),
@@ -355,6 +356,13 @@ create table if not exists device_commands (
 );
 
 create index if not exists device_commands_device_idx on device_commands (auto_number, created_at desc);
+
+-- Which commands exist, kept as a named constraint so adding one later is a
+-- re-run of this file. play = jump a TV to one ad now (payload: ad_id,
+-- title); update = SMATO Ads installs its newest version, only when asked.
+alter table device_commands drop constraint if exists device_commands_command_check;
+alter table device_commands add constraint device_commands_command_check
+  check (command in ('lock', 'unlock', 'restart', 'unpair', 'play', 'update'));
 
 alter table device_commands enable row level security;
 
