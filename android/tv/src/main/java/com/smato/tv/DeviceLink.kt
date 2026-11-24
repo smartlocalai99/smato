@@ -179,6 +179,21 @@ class DeviceLink(
         return answer
     }
 
+    // A new ad just started: tell the dashboard now rather than at the next
+    // 3-minute heartbeat, so the phone shows what's really on screen.
+    fun reportNow() {
+        if (!running || linkedName == null) return
+        executor.execute {
+            val name = linkedName ?: return@execute
+            try {
+                checkIn(name)
+                lastBeat = System.currentTimeMillis()
+            } catch (error: Exception) {
+                // Offline; the next heartbeat tries again.
+            }
+        }
+    }
+
     private fun unlink() {
         prefs.edit().remove(KEY_NAME).apply()
         codeOffered = false

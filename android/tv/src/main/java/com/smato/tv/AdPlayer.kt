@@ -25,8 +25,8 @@ import java.util.concurrent.Executors
 
 // Plays the ads scheduled for "All autos" in the SMATO dashboard, one after
 // another, forever. Each file is downloaded once and kept on the TV, so it
-// keeps playing without internet; the list is checked again every 2
-// minutes, so ads changed in the dashboard reach the TV quickly and files
+// keeps playing without internet; the list is checked again every 30
+// seconds, so ads changed in the dashboard reach the TV quickly and files
 // for removed ads are deleted. Videos play directly through Android — no web engine involved.
 // Playing starts as soon as the first file is in, smallest first; an
 // interrupted download picks up where it stopped.
@@ -37,7 +37,10 @@ class AdPlayer(
     private val status: TextView,
     // The name this TV was linked under on the dashboard (DeviceLink), if
     // any: ads sent to that name play here as well as "All autos" ones.
-    private val linkedName: () -> String?
+    private val linkedName: () -> String?,
+    // Called each time a new ad starts (or nothing is on screen), so the
+    // dashboard can show what's playing right away instead of minutes late.
+    private val onNowPlaying: () -> Unit = {}
 ) {
     private data class Ad(val id: String, val file: File, val isImage: Boolean, val title: String)
     private data class Wanted(val id: String, val path: String, val isImage: Boolean, val bytes: Long, val title: String)
@@ -121,15 +124,13 @@ class AdPlayer(
             handler.post {
                 if (!running) return@post
                 if (fresh != null) {
-                    val wasEmpty = playlist.isEmpty()
-                    playlist = fresh
-                    if (playlist.isEmpty()) {
+                    if (fresh.isEmpty()) {
+                        playlist = fresh
                         stopShowing()
                         val forThis = linkedName()?.let { " or for $it" } ?: ""
                         say("No ads are scheduled right now.\n\nAdd an ad for \"All autos\"$forThis in the SMATO dashboard.")
-                    } else if (wasEmpty || index >= playlist.size) {
-                        index = 0
-                        playCurrent()
+                    } else {
+                        adopt(fresh)
                     }
                     handler.postDelayed(refreshTick, REFRESH_MS)
                 } else {
@@ -146,10 +147,28 @@ class AdPlayer(
     // playing (or extend what's playing) instead of waiting for them all.
     private fun offerReady(ready: List<Ad>) {
         if (!running || ready.isEmpty()) return
+        adopt(ready)
+    }
+
+    // Takes a new list (changed order, ads added, paused or deleted on the
+    // dashboard) without losing our place: the ad on screen keeps playing and
+    // the list carries on after it in the new order, so "Up next" on the
+    // dashboard is what really plays next. If the ad on screen was paused or
+    // deleted, it stops now and the next one starts.
+    private fun adopt(fresh: List<Ad>) {
+        val current = playlist.getOrNull(index)
         val wasEmpty = playlist.isEmpty()
-        playlist = ready
-        if (wasEmpty) {
+        playlist = fresh
+        if (wasEmpty || current == null) {
             index = 0
+            playCurrent()
+            return
+        }
+        val at = fresh.indexOfFirst { it.id == current.id && it.file == current.file }
+        if (at >= 0) {
+            index = at
+        } else {
+            index = index.coerceAtMost(fresh.size - 1)
             playCurrent()
         }
     }
@@ -279,7 +298,9 @@ class AdPlayer(
     }
 
     private fun stopShowing() {
+        val had = nowPlaying != null
         nowPlaying = null
+        if (had) onNowPlaying()
         handler.removeCallbacks(advance)
         video.stopPlayback()
         video.visibility = View.GONE
@@ -293,6 +314,7 @@ class AdPlayer(
         if (index >= playlist.size) index = 0
         val ad = playlist[index]
         nowPlaying = ad.title.ifBlank { null }
+        onNowPlaying()
         say(null)
         if (ad.isImage) {
             video.stopPlayback()
@@ -350,7 +372,9 @@ class AdPlayer(
     }
 
     companion object {
-        private const val REFRESH_MS = 2 * 60 * 1000L
+        // How soon a change on the dashboard (order, pause, delete, new ad)
+        // reaches the TV. One small request; files are only downloaded once.
+        private const val REFRESH_MS = 30 * 1000L
         private const val RETRY_MS = 60 * 1000L
         private const val IMAGE_MS = 2 * 60 * 1000L
     }

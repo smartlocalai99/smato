@@ -8,7 +8,9 @@ import { claimTvCode, isPending, latestByDevice, needsTvSetup } from "@/lib/tvAd
 // Quick while a command is on its way, so its progress shows as the TV
 // acknowledges each step; slow otherwise. Never while the page is hidden.
 const ACTIVE_REFRESH_MS = 5000;
-const IDLE_REFRESH_MS = 60000;
+// TVs report each new ad the moment it starts, so 10 s keeps Playing now /
+// Up next in step with the screen.
+const IDLE_REFRESH_MS = 10000;
 
 export default function TvsPage() {
   const [tvs, setTvs] = useState([]);

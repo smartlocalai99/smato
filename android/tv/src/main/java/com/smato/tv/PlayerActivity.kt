@@ -104,7 +104,7 @@ class PlayerActivity : Activity() {
             onPlay = { id, title -> player.playNow(id, title) },
             onUpdate = { updater.updateNow() }
         )
-        player = AdPlayer(this, video, image, status) { link.linkedName }
+        player = AdPlayer(this, video, image, status, { link.linkedName }) { link.reportNow() }
         updater = Updater(this)
     }
 
